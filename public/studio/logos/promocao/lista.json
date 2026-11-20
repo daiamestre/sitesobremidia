@@ -2,7 +2,8 @@
   {
     "id": "oferta-do-dia",
     "nome": "Oferta do Dia!",
-    "largura": 1300,
-    "altura": 997
+    "largura": 1536,
+    "altura": 1024,
+    "semFundo": false
   }
 ]

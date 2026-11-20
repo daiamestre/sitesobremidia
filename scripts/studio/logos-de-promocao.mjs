@@ -1,9 +1,9 @@
 // F-355 — LOGOS DE PROMOÇÃO enviadas pelo dono: entram na galeria de logos do Studio (o "Trocar logo" da criação de vídeo,
 // dos palcos e dos encartes) para TODOS os usuários.
-// Tira o fundo (qualquer fundo: brilho, degradê, cor) com a IA de recorte BiRefNet_lite 1024 (MIT), a mesma família do
-// Removedor de Fundo do site, rodando no PC, sem custo e sem cota. Corta as sobras, grava a logo em alta e a miniatura e
-// atualiza a lista em src/lib/studio/logosDePromocao.ts.
-// Uso: node scripts/studio/logos-de-promocao.mjs <imagem> <id-em-minusculas> "<Nome da logo>"
+// REGRA DO DONO (20/11/2026): a logo entra EXATAMENTE como ele mandou, com o fundo dela (o fundo vermelho dos textos é parte da
+// logo). Só se o dono PEDIR, use --sem-fundo: a IA de recorte BiRefNet_lite 1024 (MIT) do PC tira o fundo.
+// Grava a logo em alta e a miniatura e atualiza a lista em src/lib/studio/logosDePromocao.ts.
+// Uso: node scripts/studio/logos-de-promocao.mjs <imagem> <id-em-minusculas> "<Nome da logo>" [--sem-fundo]
 //      node scripts/studio/logos-de-promocao.mjs --lista   (só refaz a lista a partir das logos já gravadas)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,8 +45,15 @@ async function mascaraDaIA(rgb, w, h) {
   return m.data;
 }
 
-async function prepararLogo(arquivo, id, nome) {
+async function prepararLogo(arquivo, id, nome, semFundo) {
   if (!/^[a-z0-9-]+$/.test(id)) throw new Error('id só com letras minúsculas, números e hífen');
+  const saida = `${PASTA}/${id}.webp`;
+  if (!semFundo) {
+    // como o dono mandou: nada recortado, nada cortado
+    await sharp(arquivo).rotate().webp({ quality: 95 }).toFile(saida);
+    await sharp(arquivo).rotate().resize(480, 320, { fit: 'inside' }).webp({ quality: 85 }).toFile(`${PASTA}/${id}-mini.webp`);
+    return gravar(arquivo, id, nome, saida, false);
+  }
   const { data: rgb, info } = await sharp(arquivo).rotate().removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width: W, height: H } = info;
   const mascara = await mascaraDaIA(rgb, W, H);
@@ -59,19 +66,23 @@ async function prepararLogo(arquivo, id, nome) {
   }
   const png = await sharp(rgba, { raw: { width: W, height: H, channels: 4 } }).png().toBuffer();
   const cortado = await sharp(png).trim({ threshold: 8, background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
-  const saida = `${PASTA}/${id}.webp`;
   await sharp(cortado).webp({ quality: 92, alphaQuality: 100 }).toFile(saida);
   await sharp(cortado).resize(480, 320, { fit: 'inside' }).webp({ quality: 85, alphaQuality: 90 }).toFile(`${PASTA}/${id}-mini.webp`);
+  return gravar(arquivo, id, nome, saida, true);
+}
+
+async function gravar(arquivo, id, nome, saida, semFundo) {
   const m = await sharp(saida).metadata();
   fs.mkdirSync(ORIGINAIS, { recursive: true });
   fs.copyFileSync(arquivo, path.join(ORIGINAIS, `${id}${path.extname(arquivo) || '.png'}`));
   const itens = lerManifesto().filter((l) => l.id !== id);
-  itens.unshift({ id, nome, largura: m.width, altura: m.height });
+  itens.unshift({ id, nome, largura: m.width, altura: m.height, semFundo });
   escreverLista(itens);
-  console.log(`ok ${id} ${m.width}x${m.height} alfa=${m.hasAlpha} → ${saida}`);
+  console.log(`ok ${id} ${m.width}x${m.height} ${semFundo ? 'sem fundo' : 'como o dono mandou'} → ${saida}`);
 }
 
-const [a, b, c] = process.argv.slice(2);
+const semFundo = process.argv.includes('--sem-fundo');
+const [a, b, c] = process.argv.slice(2).filter((x) => x !== '--sem-fundo');
 if (a === '--lista') escreverLista(lerManifesto());
-else if (a && b && c) await prepararLogo(a, b, c);
+else if (a && b && c) await prepararLogo(a, b, c, semFundo);
 else { console.error('Uso: node scripts/studio/logos-de-promocao.mjs <imagem> <id> "<Nome>"'); process.exit(1); }
