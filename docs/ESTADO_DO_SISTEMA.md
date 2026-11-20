@@ -77,6 +77,14 @@ O histórico completo de F-01 a F-259 está em `docs/engineering/FINDINGS_LEDGER
 
 > **P-34 fase 2 (16/11/2026):** ✅ NO AR — F-317 (logos 3D de campanha caindo do céu, quebrando a parede e pegando fogo; faixa Alerta de Oferta para a direita; sem "YOUR LOGO"), F-318 (locutor no estilo impacto: "Só essa semana, preço baixo é aqui!") e **F-319: EFEITOS REAIS** — 14 filmagens gratuitas do Pixabay (explosões, bola de fogo, fogo subindo, parede e linha de fogo, brasas, fumaça, raio, vidro rachando e estilhaçando, confete) em `public/studio/efeitos/`, aplicadas com recorte do preto pela placa de vídeo (WebGL), bordas esfumadas e explosão em elipse; cada efeito é um elemento editável (cartão "Efeito": trocar pela galeria, começo, laço, velocidade, recorte/luz/luz forte, espelhar); o MP4 lê os quadros dos efeitos em sequência pelo WebCodecs (`video/decodificarEfeito.ts`). Botão "Efeitos reais" no painel de impacto (padrão ligado). Ficha das licenças: `docs/licencas/EFEITOS_PIXABAY.md`.
 
+> **F-350 (20/11/2026): fundo PRETO no vídeo feito no iPhone, corrigido e BLINDADO.**
+> - **Causa:** as brasas (filmagem de fundo preto na tela inteira, logo acima do fundo) são misturadas no modo "clarear"; o Safari do iPhone ignora a mistura ao desenhar um vídeo no canvas e a filmagem cobria o fundo de preto. Os produtos continuavam aparecendo.
+> - **Correção:** em todo navegador o quadro do vídeo passa por uma tela comum (a "ponte") antes da mistura; o recorte do preto pela placa de vídeo (WebGL) só é usado se provar que o preto fica transparente.
+> - **Blindagem:**
+>   - `blindagemFundoDoVideo350.test.ts`: todo modelo, nos dois formatos e em todas as cenas, com fundo visível, embaixo de tudo, arquivo existente, fundo trocado chegando ao vídeo, nada opaco por cima;
+>   - `scripts/ops/testar-fundo-do-video.mjs`: Chrome + Safari/WebKit, mede o preto da prévia e do vídeo criado. Com `SIMULAR_IPHONE=1` o código antigo dava 37–72% de preto e o novo dá 0–20%;
+>   - `publicar-main.mjs`: envio que mexe no Studio só sai se os testes do vídeo passarem.
+
 > **F-349 (19/11/2026): vídeo com locução pelo passo a passo corrigido e reordenado.** No celular a prévia ocupava a tela inteira (a regra geral `.grid > * { max-width: 100% }` anulava o tamanho dela) e o iPhone dava zoom ao tocar num campo. Agora:
 > - etapas: 1) Logo e fundo (logo da promoção, logo 3D que abre o vídeo, fundo, formato) · 2) Sua empresa (nome e a logo DA EMPRESA, que fecha o vídeo) · 3) Produtos · 4) Edição do vídeo (só música, frases da abertura e do fechamento e efeitos) · 5) Locução;
 > - no fim o vídeo é montado sozinho no padrão de impacto, e a tela de edição muda qualquer coisa (o cartão "Fundo, logo e botão" tem "Sua empresa: Trocar");

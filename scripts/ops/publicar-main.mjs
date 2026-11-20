@@ -36,6 +36,23 @@ export function avaliarTeto({ ultimas24h, novas, limite = LIMITE_POR_DIA, aviso 
   return { liberar: true, nivel: 'ok', mensagem: `Publicação ${depois} de ${limite} permitidas em 24 h.` };
 }
 
+/**
+ * F-350 (pedido do dono: "blinde o sistema de vídeo contra falhas e regressão"): envio que mexe no Studio (vídeo, palco,
+ * encartes, efeitos) só sai depois que os testes do vídeo passarem. Falhou = não publica.
+ */
+export const TESTES_DO_VIDEO = [
+  'src/tests/unit/blindagemFundoDoVideo350.test.ts',
+  'src/tests/unit/videoPassoAPasso349.test.ts',
+  'src/tests/unit/videoComImpacto34.test.ts',
+  'src/tests/unit/efeitosReais319.test.ts',
+  'src/tests/unit/impactoIgualConcorrente320.test.ts',
+  'src/tests/unit/studioEditorVideo227.test.ts',
+  'src/tests/unit/studioVideosEPalco234.test.ts',
+  'src/tests/unit/regraBaloesCentralizados.test.ts',
+  'src/tests/unit/studioEdicaoCompleta249.test.ts',
+];
+export const mexeNoStudio = (arquivos) => arquivos.some((a) => /^(src\/lib\/studio\/|src\/components\/studio\/|src\/pages\/studioai\/|public\/studio\/|index\.html$)/.test(a));
+
 const git = (...a) => execFileSync('git', a, { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] });
 
 function commitsComArquivos(intervalo, extra = []) {
@@ -57,6 +74,16 @@ function principal() {
   console.log(teto.mensagem);
   if (args.has('--ver')) return;
   if (!teto.liberar) process.exit(1);
+
+  if (mexeNoStudio(pendentes.flatMap((c) => c.arquivos))) {
+    console.log('Este envio mexe no Studio: rodando a blindagem do vídeo antes de publicar…');
+    try {
+      execFileSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vitest', 'run', ...TESTES_DO_VIDEO], { stdio: 'inherit', shell: process.platform === 'win32' });
+    } catch {
+      console.error('BLOQUEADO: a blindagem do vídeo falhou. Nada foi publicado. Corrija e envie de novo.');
+      process.exit(1);
+    }
+  }
 
   const ramo = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
   git('push', '-q', 'origin', ramo);

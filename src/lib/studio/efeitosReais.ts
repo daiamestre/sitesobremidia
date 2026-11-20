@@ -217,8 +217,58 @@ function criarRecorte(): Recorte | null {
     const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    return { tela, gl, janela: gl.getUniformLocation(prog, 'janela'), bordas: gl.getUniformLocation(prog, 'bordas'), radial: gl.getUniformLocation(prog, 'radial') };
+    const r: Recorte = { tela, gl, janela: gl.getUniformLocation(prog, 'janela'), bordas: gl.getUniformLocation(prog, 'bordas'), radial: gl.getUniformLocation(prog, 'radial') };
+    return recorteTransparente(r) ? r : null;
   } catch { return null; }
+}
+
+/**
+ * F-350: prova que o preto recortado fica TRANSPARENTE de verdade ao ir para a arte (em alguns aparelhos, como o iPhone, a
+ * tela da placa de vídeo pode chegar opaca e pintaria o fundo da arte de preto). Se não ficar, o recorte não é usado.
+ */
+function recorteTransparente(r: Recorte): boolean {
+  try {
+    const preto = document.createElement('canvas'); preto.width = 4; preto.height = 4;
+    const pp = preto.getContext('2d'); if (!pp) return false;
+    pp.fillStyle = '#000'; pp.fillRect(0, 0, 4, 4);
+    const { tela, gl } = r;
+    tela.width = 4; tela.height = 4;
+    gl.uniform4f(r.janela, 0, 0, 1, 1); gl.uniform4f(r.bordas, 0, 0, 0, 0); gl.uniform1f(r.radial, 0);
+    gl.viewport(0, 0, 4, 4);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, preto);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    const prova = document.createElement('canvas'); prova.width = 4; prova.height = 4;
+    const pc = prova.getContext('2d', { willReadFrequently: true }); if (!pc) return false;
+    pc.fillStyle = '#ff0000'; pc.fillRect(0, 0, 4, 4);
+    pc.drawImage(tela, 0, 0, 4, 4);
+    const [vr, vg, vb] = pc.getImageData(2, 2, 1, 1).data;
+    return vr > 200 && vg < 60 && vb < 60;
+  } catch { return false; }
+}
+
+/**
+ * F-350 (pedido do dono, 20/11/2026): no iPhone/Safari o FUNDO da arte ficava PRETO. As brasas, o fogo etc. são filmagens
+ * em fundo preto misturadas no modo "clarear"/"tela" (o preto some); só que o Safari ignora o modo de mistura ao desenhar um
+ * <video> direto no canvas, e a filmagem cobria o fundo de preto. Em TODO navegador (sem adivinhar qual é: iPad, Chrome do
+ * iPhone, navegador do Instagram…) o quadro do vídeo passa antes por uma tela comum (a "ponte") e só ela é misturada —
+ * mistura de tela com tela todos respeitam. Prova: SIMULAR_IPHONE=1 node scripts/ops/testar-fundo-do-video.mjs
+ */
+let PONTE: HTMLCanvasElement | null = null;
+export function precisaDePonte(fonte: CanvasImageSource): boolean {
+  return (typeof HTMLVideoElement !== 'undefined' && fonte instanceof HTMLVideoElement) || (typeof VideoFrame !== 'undefined' && fonte instanceof VideoFrame);
+}
+function pelaPonte(fonte: CanvasImageSource, w: number, h: number, limite: number): CanvasImageSource {
+  if (typeof document === 'undefined') return fonte;
+  if (!PONTE) PONTE = document.createElement('canvas');
+  const s = Math.min(1, Math.max(256, Math.min(1280, limite)) / w);
+  const cw = Math.max(2, Math.round(w * s)), ch = Math.max(2, Math.round(h * s));
+  if (PONTE.width !== cw || PONTE.height !== ch) { PONTE.width = cw; PONTE.height = ch; }
+  const c = PONTE.getContext('2d');
+  if (!c) return fonte;
+  c.globalCompositeOperation = 'copy';
+  try { c.drawImage(fonte, 0, 0, cw, ch); } catch { return fonte; }
+  return PONTE;
 }
 /** o quadro do efeito com o preto já transparente (null = sem WebGL) */
 export function recortarPreto(fonte: CanvasImageSource, w: number, h: number, janela: [number, number, number, number] = [0, 0, 1, 1], bordas: [number, number, number, number] = [0, 0, 0, 0], radial = false, limite = 1280): HTMLCanvasElement | null {
@@ -254,14 +304,17 @@ export function desenharEfeito(ctx: CanvasRenderingContext2D, c: CamadaEfeito, t
   // F-320: a base também esfuma (com a base firme, o fogo atrás da logo terminava numa LINHA reta embaixo do nome). O fogo do
   // chão passa da beirada da tela, então o esfumado dele fica fora da tela.
   const bordas: [number, number, number, number] = [f, f, c.ancora === 'cima' ? f * 0.5 : f, f];
-  const recortado = modo === 'chave' ? recortarPreto(q.fonte, q.w, q.h, janela, bordas, efeitoPorId(c.efeito)?.grupo === 'explosao', dw * Math.abs(ctx.getTransform().a) * (!EXATO && aparelhoFraco() ? 0.6 : 1)) : null;
+  const tamanhoNaTela = dw * Math.abs(ctx.getTransform().a) * (!EXATO && aparelhoFraco() ? 0.6 : 1);
+  const recortado = modo === 'chave' ? recortarPreto(q.fonte, q.w, q.h, janela, bordas, efeitoPorId(c.efeito)?.grupo === 'explosao', tamanhoNaTela) : null;
   // (o recorte é feito no tamanho em que o efeito APARECE na tela — o efeito pequeno do preço custa pouco no tablet)
+  // F-350: o vídeo passa pela ponte antes da mistura — no iPhone, sem ela, o preto da filmagem cobria o fundo da arte
+  const fonte = recortado ?? (precisaDePonte(q.fonte) ? pelaPonte(q.fonte, q.w, q.h, tamanhoNaTela) : q.fonte);
   ctx.save();
   ctx.beginPath(); ctx.rect(-c.w / 2, -c.h / 2, c.w, c.h); ctx.clip();
   ctx.globalCompositeOperation = recortado ? 'source-over' : ((modo === 'chave' ? 'screen' : modo) as GlobalCompositeOperation);
   ctx.globalAlpha *= q.alfa;
   if (c.espelhar) ctx.scale(-1, 1);
-  ctx.drawImage(recortado ?? q.fonte, -dw / 2, y0, dw, dh);
+  ctx.drawImage(fonte, -dw / 2, y0, dw, dh);
   ctx.restore();
 }
 

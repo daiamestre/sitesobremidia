@@ -9,7 +9,8 @@ Todos os scripts leem as chaves de `~/.sobremidia-secrets/tokens.env`, que fica 
 | Consultar/alterar o banco de produção | `node scripts/ops/sql.mjs "select ..."` ou `node scripts/ops/sql.mjs @arquivo.sql` |
 | Provar que uma migração não muda as telas | `node scripts/ops/comparar-telas.mjs antes`, aplicar a migração, depois `node scripts/ops/comparar-telas.mjs depois` |
 | Publicar o site em produção (Vercel) | `node scripts/ops/deploy-vercel.mjs` (commit atual já enviado ao GitHub) |
-| Enviar para o site COM TRAVA de limite da Vercel | `node scripts/ops/publicar-main.mjs` (`--ver` só mostra o uso; `--forcar` ignora o teto diário, só para urgência) |
+| Enviar para o site COM TRAVA de limite da Vercel | `node scripts/ops/publicar-main.mjs` (`--ver` só mostra o uso; `--forcar` ignora o teto diário, só para urgência). Envio que mexe no Studio só sai se a **blindagem do vídeo** passar (F-350) |
+| Provar em Chrome e Safari/iPhone que o vídeo não sai com fundo preto (F-350) | `node scripts/ops/testar-fundo-do-video.mjs [url]`; com `SIMULAR_IPHONE=1` reproduz o defeito do Safari do iPhone (precisa de `npx playwright install webkit chromium`) |
 | Liberar espaço na Vercel (apagar publicações antigas) | `node scripts/ops/limpar-deploys-vercel.mjs` (só simula) → `--executar` (precisa de chave válida da Vercel) |
 | Chamar uma Edge Function de produção (chave pública) | `node scripts/ops/chamar-funcao.mjs <funcao> '<json>'` |
 | Conferir se o código novo está no ar | `node scripts/ops/conferir-site.mjs "texto novo"` |

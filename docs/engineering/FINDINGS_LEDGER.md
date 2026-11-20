@@ -4036,3 +4036,16 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Teste:**
   - `videoPassoAPasso349.test.ts` (7) mais os testes do palco: 117 no total;
   - conferido no navegador com 390 px: 5 etapas, prévia de 170 px e fechamento com a logo da empresa.
+
+### F-350 — Fundo PRETO no vídeo do iPhone; sistema de vídeo blindado (20/11/2026)
+- **Sintoma:** no iPhone, a prévia e o vídeo com locução saíam com o fundo preto e os produtos por cima. Não aparecia no Chrome do PC.
+- **Causa:** `comEfeitosReais` (palco.ts) põe as brasas (`brasas.mp4`, fundo preto, tela inteira) logo acima do "Fundo oficial" com `mistura: 'lighter'`. O Safari do iPhone ignora o `globalCompositeOperation` ao desenhar um `<video>` no canvas, então a filmagem pintava o preto por cima do fundo.
+- **Prova:** `SIMULAR_IPHONE=1 node scripts/ops/testar-fundo-do-video.mjs` troca o `drawImage` de vídeo para ignorar a mistura.
+  - Código antigo: 48–72% da prévia e 37–42% do vídeo pretos.
+  - Código novo: 0–2% de preto na prévia e até 20% no vídeo, que é a abertura.
+- **Correção (`efeitosReais.ts`):**
+  - `precisaDePonte`/`pelaPonte`: todo quadro de vídeo ou VideoFrame passa por um canvas comum antes da mistura, em qualquer navegador, sem detectar qual é;
+  - `recorteTransparente`: o recorte WebGL só é usado se o preto sair transparente.
+- **Blindagem:**
+  - `blindagemFundoDoVideo350.test.ts` (6 testes): todos os modelos, formatos e cenas; fundo trocado; misturas seguras; ponte; prova do WebGL; retry da imagem;
+  - `publicar-main.mjs` roda `TESTES_DO_VIDEO` quando o envio mexe no Studio e bloqueia se falhar.
