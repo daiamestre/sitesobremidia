@@ -2,12 +2,12 @@
   {
     "id": "black-friday-dados",
     "nome": "Black Friday (dados)",
-    "arquivo": "black-friday-dados-7ca20e40.png",
-    "mini": "black-friday-dados-7ca20e40-mini.webp",
+    "arquivo": "black-friday-dados-172307b9.png",
+    "mini": "black-friday-dados-172307b9-mini.webp",
     "largura": 1342,
     "altura": 1172,
     "limpa": true,
-    "vaga": "black-friday-dados-7ca20e40-vaga.png"
+    "vaga": "black-friday-dados-172307b9-vaga.png"
   },
   {
     "id": "black-friday-megafone",
@@ -156,8 +156,8 @@
   {
     "id": "natal-de-ofertas-gorro",
     "nome": "Natal de Ofertas (gorro)",
-    "arquivo": "natal-de-ofertas-gorro-1f0ba3fb.png",
-    "mini": "natal-de-ofertas-gorro-1f0ba3fb-mini.webp",
+    "arquivo": "natal-de-ofertas-gorro-7cc86db9.png",
+    "mini": "natal-de-ofertas-gorro-7cc86db9-mini.webp",
     "largura": 1232,
     "altura": 1277,
     "limpa": true
@@ -341,12 +341,12 @@
   {
     "id": "sexta-da-carne-brasa",
     "nome": "Sexta da Carne (brasa)",
-    "arquivo": "sexta-da-carne-brasa-fc55991e.png",
-    "mini": "sexta-da-carne-brasa-fc55991e-mini.webp",
+    "arquivo": "sexta-da-carne-brasa-1e5d4a9a.png",
+    "mini": "sexta-da-carne-brasa-1e5d4a9a-mini.webp",
     "largura": 1228,
     "altura": 1281,
     "limpa": true,
-    "vaga": "sexta-da-carne-brasa-fc55991e-vaga.png"
+    "vaga": "sexta-da-carne-brasa-1e5d4a9a-vaga.png"
   },
   {
     "id": "arraia-de-ofertas",
@@ -383,8 +383,8 @@
   {
     "id": "quarta-das-carnes",
     "nome": "Quarta das Carnes",
-    "arquivo": "quarta-das-carnes-e93e2de1.png",
-    "mini": "quarta-das-carnes-e93e2de1-mini.webp",
+    "arquivo": "quarta-das-carnes-c5b4ddfd.png",
+    "mini": "quarta-das-carnes-c5b4ddfd-mini.webp",
     "largura": 1236,
     "altura": 1273,
     "limpa": true

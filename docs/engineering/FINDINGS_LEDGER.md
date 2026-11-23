@@ -4125,3 +4125,15 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `src/lib/studio/pastasDeLogos.ts`: pastas por segmento (Mercado e Ofertas, Açougue, Black Friday, Farmácia, Padaria, Hortifrúti, Adega, Pet, Beleza, Suplementos, Eletrônicos, Moda) e por data comemorativa (Carnaval, Páscoa, Dia das Mães, Dia dos Namorados, São João, Dia dos Pais, Dia das Crianças, Natal, Fim de Ano).
   - A pasta de cada logo de promoção fica em `scripts/studio/pastas-das-logos.json`.
   - A página Logos e a janela "Trocar logo" abrem primeiro as pastas. Aberta uma pasta, aparecem todas as logos dela.
+- **Revisão com comparação original × corrigida (23/11/2026, regra do dono: "sempre comparar até sanar todas as falhas"):**
+  - Para cada zona mexida, a logo original e a corrigida são comparadas lado a lado, de perto, junto com o mapa do que mudou. Isso se repete até não sobrar falha.
+  - Black Friday (dados):
+    - saíram os pontinhos escuros e cinza soltos no miolo e os restos de xadrez tingidos pelo tubo e pelo aro;
+    - a letra C deixou de ser tomada por xadrez (o xadrez agora só é procurado dentro do círculo);
+    - a base do K ficou protegida.
+  - Sexta da Carne (brasa):
+    - o aro vermelho é refeito raio a raio, só no trecho das letras e com média do próprio aro, sem "letras fantasma";
+    - as letras brancas e o garfo ficaram protegidos;
+    - saiu o cantinho rosado.
+  - Quarta das Carnes: o disco de tábuas recebe os veios da própria tábua (sem risco do brilho da beirada) e as pontas das letras saem pelo próprio sulco.
+  - Natal (gorro): saíram os restos rosados do "SUA LOGO".

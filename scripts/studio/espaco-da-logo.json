@@ -3,17 +3,18 @@
   "quarta-das-carnes": { "zonas": [
     { "modo": "aro", "limites": [420, 0, 840, 160], "centro": [622, 220], "raios": [174, 211], "angulos": [-146, -25], "letra": { "lum": 95, "neutro": 28 }, "fonte": { "lumMax": 60, "neutro": 22 }, "crescer": 6, "crescerNeutro": 50, "crescerEscuro": 75, "beirada": 6,
       "proteger": [[[380, 62], [444, 67], [539, 169], [528, 191], [472, 180], [370, 70]], [[828, 172], [900, 25], [1000, 25], [1000, 330], [780, 330]], [[730, 117], [850, 156], [850, 240], [730, 240]]] },
-    { "modo": "colunas", "limites": [550, 995, 795, 1210], "face": [671, 1102, 117, 101], "margem": 3, "letra": { "lum": 165, "neutro": 70 }, "crescer": 13 }
+    { "modo": "colunas", "limites": [550, 995, 795, 1210], "face": [671, 1102, 117, 101], "margem": 3, "caixaLetras": [565, 1032, 795, 1135], "folgaRestos": -12, "letra": { "lum": 165, "neutro": 70, "lumRestos": 95 }, "crescer": 20, "crescerRestos": 5, "alcance": 26, "veioMax": 40 }
   ] },
   "sexta-da-carne-brasa": { "zonas": [
-    { "modo": "aro", "limites": [880, 20, 1228, 260], "centro": [1046, 213], "raios": [143, 182], "angulos": [-135, 0], "letra": { "lum": 150, "neutro": 50 }, "fonte": { "vermelho": 110 }, "crescer": 3 },
-    { "modo": "xadrez", "limites": [840, 5, 1228, 420], "tons": [[222, 240], [246, 255]], "neutro": 16 }
+    { "modo": "aro", "limites": [880, 20, 1228, 260], "centro": [1046, 213], "raios": [143, 182], "angulos": [-101, 1], "faixaInteira": [144, 170], "letra": { "lum": 150, "neutro": 50 }, "fonte": { "vermelho": 110 }, "crescer": 3 },
+    { "modo": "xadrez", "limites": [840, 5, 1228, 420], "tons": [[222, 240], [246, 255]], "neutro": 24, "rosado": 10,
+      "proteger": [[[835, 321], [1042, 321], [1078, 331], [1106, 346], [1132, 374], [1165, 425], [835, 425]]] }
   ] },
   "natal-de-ofertas-gorro": { "zonas": [
-    { "modo": "liso", "limites": [415, 975, 885, 1110], "letra": { "vermelho": 60 }, "crescer": 3 }
+    { "modo": "liso", "limites": [415, 975, 885, 1110], "letra": { "vermelho": 14 }, "crescer": 8 }
   ] },
   "black-friday-dados": { "zonas": [
     { "modo": "aro", "limites": [830, 40, 1342, 330], "centro": [1053, 308], "raios": [203, 246], "angulos": [-130, -12], "letra": { "lum": 110, "neutro": 40 }, "fonte": { "lumMax": 80, "neutro": 22 }, "crescer": 3 },
-    { "modo": "xadrez", "limites": [830, 40, 1342, 560], "tons": [[211, 217], [249, 255]], "janela": 18, "minimo": 0.04, "pedaco": 150 }
+    { "modo": "xadrez", "limites": [872, 40, 1342, 492], "tons": [[211, 217], [249, 255]], "neutro": 14, "janela": 18, "minimo": 0.04, "pedaco": 150, "expandir": 8, "expNeutro": 24, "claroMin": 170, "forcar": [[945, 212, 992, 240]] }
   ] }
 }

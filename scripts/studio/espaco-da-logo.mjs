@@ -58,13 +58,47 @@ for (const z of [...cfg.zonas].sort((a, b) => ordem(a) - ordem(b))) {
     // o fio claro da beirada de fora (contorno do aro, encostado no transparente) é desenho do dono: nunca entra
     const naBeirada = (x, y) => { if (!z.beirada) return false; const a = Math.atan2(y - cy, x - cx); for (let d = 1; d <= z.beirada; d++) { const q = Math.round(y + d * Math.sin(a)) * W + Math.round(x + d * Math.cos(a)); if (data[q * 4 + 3] < 128) return true; } return false; };
     const naFaixa = (x, y) => { const r = Math.hypot(x - cx, y - cy), a = Math.atan2(y - cy, x - cx); return r >= r0 && r <= r1 && a >= a0 && a <= a1 && dentro(x, y) && !naBeirada(x, y); };
-    for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; if (naFaixa(x, y) && !xadrezAchado[k] && data[k * 4 + 3] > 0 && lum(k) >= z.letra.lum && neutro(k) <= z.letra.neutro) M[k] = 1; }
+    for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; if (!z.faixaInteira && naFaixa(x, y) && !xadrezAchado[k] && data[k * 4 + 3] > 0 && lum(k) >= z.letra.lum && neutro(k) <= z.letra.neutro) M[k] = 1; }
+    // faixaInteira: a faixa das letras sai toda (letras + borda + sombra delas) e o aro liso continua de uma ponta à outra
     crescer(M, z.crescer ?? 2, (x, y) => naFaixa(x, y) && !xadrezAchado[y * W + x] && (z.crescerNeutro == null || neutro(y * W + x) <= z.crescerNeutro || lum(y * W + x) <= (z.crescerEscuro ?? -1)));
     // a cor que vale como "aro": escuro (alça e aro pretos) ou vermelho (aro vermelho)
     const corDoAro = (q) => (z.fonte?.vermelho ? data[q * 4] - data[q * 4 + 1] >= z.fonte.vermelho : lum(q) <= (z.fonte?.lumMax ?? 255) && neutro(q) <= (z.fonte?.neutro ?? 255));
+    if (z.faixaInteira) {
+      // POR RAIO: em cada direção mede o aro (1º e último ponto vermelho) e onde estão as letras dentro dele; só esse trecho
+      // (letras + sombra) é trocado, ligando o vermelho limpo de antes ao de depois (média de raios vizinhos: sem riscos)
+      const PASSO = 0.1, nb = Math.ceil((z.angulos[1] - z.angulos[0]) / PASSO) + 1;
+      const ehAro = (q) => data[q * 4 + 3] > 200 && corDoAro(q);
+      const raio = new Array(nb);
+      for (let b = 0; b < nb; b++) {
+        const t = ((z.angulos[0] + b * PASSO) * Math.PI) / 180; const pts = [];
+        for (let r = z.faixaInteira[0] - 20; r <= z.faixaInteira[1] + 20; r += 0.5) { const x = Math.round(cx + r * Math.cos(t)), y = Math.round(cy + r * Math.sin(t)); pts.push([r, y * W + x]); }
+        const vermelhos = pts.filter(([, q]) => ehAro(q)); if (!vermelhos.length) { raio[b] = null; continue; }
+        const rin = vermelhos[0][0], rout = vermelhos[vermelhos.length - 1][0];
+        const letras = pts.filter(([r, q]) => r > rin + 1 && r < rout - 1 && !ehAro(q));
+        raio[b] = { t, rin, rout, l0: letras.length ? Math.max(rin + 1.5, letras[0][0] - (z.margemLetra ?? 3)) : null, l1: letras.length ? Math.min(rout - 1.5, letras[letras.length - 1][0] + (z.margemLetra ?? 3)) : null };
+      }
+      // a faixa trocada tem a MESMA posição dentro do aro em todos os ângulos (cobre todas as letras): as bordas dela são
+      // sempre aro limpo, então a média dos raios vizinhos nunca puxa cor de letra (isso deixava "letras fantasma")
+      let d0 = Infinity, d1 = -Infinity;
+      for (const R of raio) if (R && R.l0 !== null) { d0 = Math.min(d0, R.l0 - R.rin); d1 = Math.max(d1, R.l1 - R.rin); }
+      for (const R of raio) if (R) { R.l0 = R.rin + d0; R.l1 = Math.min(R.rout - 1.5, R.rin + d1); }
+      const corEm = (b, r) => { const R = raio[b]; return amostra(data, cx + r * Math.cos(R.t), cy + r * Math.sin(R.t)); };
+      // média só de cor de aro (fogo, carne e letras que encostam no aro ficam de fora); sem nenhuma, busca mais longe
+      const aroOk = (c) => c[3] > 200 && (z.fonte?.vermelho ? c[0] - c[1] >= z.fonte.vermelho : (c[0] + c[1] + c[2]) / 3 <= (z.fonte?.lumMax ?? 255));
+      const media = (b, r) => { for (const L of [15, 60, 200]) { const acc = [0, 0, 0, 0]; let n = 0; for (let d = -L; d <= L; d++) { const bb = b + d; if (bb < 0 || bb >= nb || !raio[bb]) continue; const c = corEm(bb, r); if (!aroOk(c)) continue; for (let i = 0; i < 4; i++) acc[i] += c[i]; n++; } if (n) return acc.map((v) => v / n); } return corEm(b, r); };
+      for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) {
+        const k = y * W + x; if (!dentro(x, y)) continue;
+        const ang = (Math.atan2(y - cy, x - cx) * 180) / Math.PI; const b = Math.round((ang - z.angulos[0]) / PASSO); if (b < 0 || b >= nb || !raio[b] || raio[b].l0 === null) continue;
+        const r = Math.hypot(x - cx, y - cy), R = raio[b]; if (r < R.l0 || r > R.l1) continue;
+        const ci = media(b, R.l0 - 1), co = media(b, R.l1 + 1), p = (r - R.l0) / Math.max(1, R.l1 - R.l0);
+        const ponta = Math.min(b, nb - 1 - b) * PASSO, w = Math.min(1, ponta / (z.emenda ?? 3)); // 0 na ponta → 1 a 3° dela
+        for (let c = 0; c < 4; c++) out[k * 4 + c] = Math.round((ci[c] * (1 - p) + co[c] * p) * w + data[k * 4 + c] * (1 - w));
+        M[k] = 2;
+      }
+    }
     // cada ponto das letras: a cor do aro na MESMA distância do centro, logo antes e logo depois da letra (na curva)
     for (let k = 0; k < N; k++) {
-      if (!M[k]) continue; const x = k % W, y = (k / W) | 0; const r = Math.hypot(x - cx, y - cy), a = Math.atan2(y - cy, x - cx);
+      if (M[k] !== 1) continue; const x = k % W, y = (k / W) | 0; const r = Math.hypot(x - cx, y - cy), a = Math.atan2(y - cy, x - cx);
       const passo = 0.5 / r, achados = [];
       for (const s of [-1, 1]) for (let i = 1; i < 2400; i++) {
         const b = a + s * i * passo, sx = cx + r * Math.cos(b), sy = cy + r * Math.sin(b);
@@ -103,6 +137,30 @@ for (const z of [...cfg.zonas].sort((a, b) => ordem(a) - ordem(b))) {
       if (comp.length < (z.pedaco ?? 40)) for (const k of comp) M[k] = 0; } }
     // pontinhos claros que ficaram cercados de xadrez (bordas dos quadradinhos) também saem; a prata do K e do garfo não fica cercada
     for (let volta = 0; volta < 3; volta++) { const n = M.slice(); for (let y = by0 + 1; y < by1 - 1; y++) for (let x = bx0 + 1; x < bx1 - 1; x++) { const k = y * W + x; if (M[k] || !dentro(x, y) || lum(k) < 200 || neutro(k) > 12) continue; let v = 0; for (const d of [1, -1, W, -W, W + 1, W - 1, -W + 1, -W - 1]) v += M[k + d]; if (v >= 5) n[k] = 1; } M.set(n); }
+    // cantinhos de xadrez pequenos demais para a janela (presos entre o tubo e o aro): caixa conferida à mão, só cinza claro
+    for (const c of z.forcar ?? []) for (let y = c[1]; y < c[3]; y++) for (let x = c[0]; x < c[2]; x++) { const k = y * W + x; if (dentro(x, y) && neutro(k) <= (z.expNeutro ?? 15) && lum(k) >= (z.claroMin ?? 120) && data[k * 4 + 3] > 200) M[k] = 1; }
+    // RESTOS DO XADREZ: o cinza claro neutro grudado no xadrez (quadradinhos escurecidos pela sombra do K, do tubo e do aro)
+    // também sai. Só cinza claro e neutro: o contorno laranja/preto das letras e o aro preto seguram a expansão.
+    for (let volta = 0; volta < (z.expandir ?? 0); volta++) {
+      const n = M.slice(); let cresceu = 0;
+      for (let y = by0 + 1; y < by1 - 1; y++) for (let x = bx0 + 1; x < bx1 - 1; x++) { const k = y * W + x; if (M[k] || !dentro(x, y) || neutro(k) > (z.expNeutro ?? 15) || lum(k) < (z.claroMin ?? 120) || data[k * 4 + 3] < 200) continue; if (M[k - 1] || M[k + 1] || M[k - W] || M[k + W]) { n[k] = 1; cresceu++; } }
+      M.set(n); if (!cresceu) break;
+    }
+    for (let volta = 0; volta < (z.rosado ?? 0); volta++) { const n = M.slice();
+      for (let y = by0 + 1; y < by1 - 1; y++) for (let x = bx0 + 1; x < bx1 - 1; x++) { const k = y * W + x; if (M[k] || !dentro(x, y)) continue; const r = data[k * 4], g = data[k * 4 + 1], bl = data[k * 4 + 2];
+        if (lum(k) >= 195 && g - bl >= -4 && g - bl <= (lum(k) >= 225 ? 48 : 32) && r - g <= 60 && r >= g && (M[k - 1] || M[k + 1] || M[k - W] || M[k + W])) n[k] = 1; }
+      M.set(n); }
+    // ILHAS: pedacinhos (bordas cinza dos quadradinhos, sombras soltas) totalmente cercados de xadrez também saem.
+    // O desenho do dono (K, tubo, carne, garfo) nunca fica cercado, porque continua até fora do xadrez.
+    { const visto = new Uint8Array(N);
+      for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) {
+        const k0 = y * W + x; if (M[k0] || visto[k0] || !dentro(x, y)) continue;
+        const comp = [k0], pilha = [k0]; visto[k0] = 1; let preso = true;
+        // percorre o pedaço INTEIRO (parar no meio deixava sobras marcadas por engano)
+        while (pilha.length) { const k = pilha.pop(), kx = k % W, ky = (k / W) | 0;
+          for (const [dx, dy] of VIZ4) { const nx = kx + dx, ny = ky + dy; if (!dentro(nx, ny)) { preso = false; continue; } const q = ny * W + nx; if (M[q] || visto[q]) continue; visto[q] = 1; comp.push(q); pilha.push(q); } }
+        if (preso && comp.length <= (z.ilha ?? 600)) for (const k of comp) M[k] = 1;
+      } }
     for (let k = 0; k < N; k++) if (M[k]) { out[k * 4] = out[k * 4 + 1] = out[k * 4 + 2] = 255; out[k * 4 + 3] = 255; vaga[k] = 1; xadrezAchado[k] = 1; }
     // as bordas meio-cinza entre o xadrez e o aro/desenhos também ficam sob a logo do usuário (não aparecem com ela)
     const v2 = vaga.slice(); for (let k = W; k < N - W; k++) if (!vaga[k] && (vaga[k - 1] || vaga[k + 1] || vaga[k - W] || vaga[k + W]) && dentro(k % W, (k / W) | 0) && lum(k) > 150 && neutro(k) <= 12) v2[k] = 1; vaga.set(v2);
@@ -117,16 +175,31 @@ for (const z of [...cfg.zonas].sort((a, b) => ordem(a) - ordem(b))) {
     const pode = (x, y) => dentro(x, y) && naFace(x, y, z.margem ?? 2);
     for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; if (pode(x, y) && lum(k) >= z.letra.lum && neutro(k) <= z.letra.neutro) M[k] = 1; }
     crescer(M, z.crescer ?? 8, pode);
+    // pontinhas de letra na beirada do miolo: entram junto e são trocadas pela MESMA tábua (sem borrão)
+    const restos = new Uint8Array(N);
+    // só a parte das letras que ENCOSTA no que já saiu (a letra continua pelo sulco); o brilho da beirada do disco fica
+    // todo ponto de letra (branco/cinza claro) dentro da caixa das letras e até a beirada do miolo, mesmo sem encostar
+    for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; if (!M[k] && dentro(x, y) && naFace(x, y, z.folgaRestos ?? -3) && (!z.caixaLetras || naCaixa(x, y, z.caixaLetras)) && lum(k) >= (z.letra.lumRestos ?? 120) && neutro(k) <= z.letra.neutro) restos[k] = 1; }
+    crescer(restos, z.crescerRestos ?? 3, (x, y) => dentro(x, y) && !M[y * W + x] && naFace(x, y, -6));
+    for (let k = 0; k < N; k++) if (restos[k]) M[k] = 1;
     const valido = (x, y) => y >= 0 && y < H && naFace(x, y, (z.margem ?? 2) + 2) && !M[y * W + x];
     const media = (x, ys, c) => ys.reduce((t, yy) => t + data[(yy * W + x) * 4 + c], 0) / ys.length;
     const detalhe = new Float32Array(N * 4); // detalhe = ponto − média dos vizinhos na linha (os veios são verticais)
     for (let y = Math.max(0, by0 - 130); y < Math.min(H, by1 + 130); y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; for (let c = 0; c < 3; c++) { let t = 0, n = 0; for (let d = -5; d <= 5; d++) { const q = k + d; if (!M[q]) { t += data[q * 4 + c]; n++; } } detalhe[k * 4 + c] = n ? data[k * 4 + c] - t / n : 0; } }
+    // a madeira é alaranjada: ponto acinzentado e claro na madeira "boa" é resto de letra (contorno), não veio — não é copiado
+    for (let k = 0; k < N; k++) if (neutro(k) <= (z.letra.neutroResto ?? 90) && lum(k) >= (z.letra.lumResto ?? 90) && data[k * 4 + 3] > 200) { detalhe[k * 4] = detalhe[k * 4 + 1] = detalhe[k * 4 + 2] = 0; }
     for (let x = bx0; x < bx1; x++) {
       let y = by0;
       while (y < by1) {
         if (!M[y * W + x]) { y++; continue; }
         const a = y; while (y < by1 && M[y * W + x]) y++; const b = y - 1, L = b - a + 1;
-        const acima = [], abaixo = []; for (let yy = a - 1; valido(x, yy) && acima.length < 200; yy--) acima.push(yy); for (let yy = b + 1; valido(x, yy) && abaixo.length < 200; yy++) abaixo.push(yy);
+        // madeira boa acima e abaixo; na beirada do miolo (coluna curta) aceita até a beira do sulco
+        let acima = [], abaixo = [];
+        for (const folga of [(z.margem ?? 2) + 2, 0, -2]) {
+          const ok = (yy) => yy >= 0 && yy < H && naFace(x, yy, folga) && !M[yy * W + x];
+          acima = []; abaixo = []; for (let yy = a - 1; ok(yy) && acima.length < (z.alcance ?? 200); yy--) acima.push(yy); for (let yy = b + 1; ok(yy) && abaixo.length < (z.alcance ?? 200); yy++) abaixo.push(yy);
+          if (acima.length + abaixo.length >= 6) break;
+        }
         if (!acima.length && !abaixo.length) continue;
         const pega = (lista, i) => { const p = 2 * lista.length; const j = i % p; return lista[j < lista.length ? j : p - 1 - j]; };
         const cA = [0, 1, 2, 3].map((c) => (acima.length ? media(x, acima.slice(0, 4), c) : media(x, abaixo.slice(0, 4), c)));
@@ -137,18 +210,30 @@ for (const z of [...cfg.zonas].sort((a, b) => ordem(a) - ordem(b))) {
           for (let c = 0; c < 4; c++) {
             const base = cA[c] * (1 - t) + cB[c] * t;
             const dc = sc === null ? null : detalhe[(sc * W + x) * 4 + c], db = sb === null ? null : detalhe[(sb * W + x) * 4 + c];
-            const det = c === 3 ? 0 : dc === null ? db : db === null ? dc : dc * (1 - t) + db * t;
+            const det0 = c === 3 ? 0 : dc === null ? db : db === null ? dc : dc * (1 - t) + db * t, lim = z.veioMax ?? 255;
+            const det = Math.max(-lim, Math.min(lim, det0)); // um brilho forte (beirada do sulco) não vira risco no meio da tábua
             out[k * 4 + c] = Math.max(0, Math.min(255, Math.round(base + det)));
           }
         }
       }
     }
-    // pontinhas de letra fora do miolo (no sulco): o sulco em volta preenche suave
-    const restos = new Uint8Array(N);
-    for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; if (!M[k] && dentro(x, y) && lum(k) >= z.letra.lum && neutro(k) <= z.letra.neutro) restos[k] = 1; }
-    crescer(restos, 3, (x, y) => dentro(x, y) && !M[y * W + x]);
-    laplace(restos);
-    for (let k = 0; k < N; k++) if (restos[k]) M[k] = 1;
+    // última passada: ponto trocado que ficou ACINZENTADO (a madeira é alaranjada) recebe a média da madeira em volta
+    const nOut = (k) => Math.max(out[k * 4], out[k * 4 + 1], out[k * 4 + 2]) - Math.min(out[k * 4], out[k * 4 + 1], out[k * 4 + 2]);
+    for (let volta = 0; volta < 3; volta++) for (let k = W * 3; k < N - W * 3; k++) {
+      const lOut = (q) => (out[q * 4] + out[q * 4 + 1] + out[q * 4 + 2]) / 3;
+      if (!M[k] || nOut(k) > (z.cinzaMax ?? 75) || lOut(k) < 90) continue; const acc = [0, 0, 0, 0]; let n = 0; // cinza CLARO (o sulco escuro fica)
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) { const q = k + dy * W + dx; if (nOut(q) > (z.cinzaMax ?? 75) + 10 && lOut(q) >= 90 && out[q * 4 + 3] > 200) { for (let c = 0; c < 4; c++) acc[c] += out[q * 4 + c]; n++; } }
+      if (n) for (let c = 0; c < 4; c++) out[k * 4 + c] = Math.round(acc[c] / n);
+    }
+    // na BEIRADA (sulco escuro e o brilho dele, por cima dos quais as letras passavam): cada ponto recebe o próprio sulco,
+    // ao longo da elipse do disco (mesma distância relativa do centro), como nos aros
+    for (let k = 0; k < N; k++) {
+      if (!M[k]) continue; const x = k % W, y = (k / W) | 0; if (naFace(x, y, z.beiradaDoSulco ?? -1)) continue;
+      const u = (x - fx) / ea, v = (y - fy) / eb, rho = Math.hypot(u, v), t0 = Math.atan2(v, u), passo = 0.4 / (rho * Math.max(ea, eb)), achados = [];
+      for (const sn of [-1, 1]) for (let i = 1; i < 4000; i++) { const t = t0 + sn * i * passo, sx = fx + ea * rho * Math.cos(t), sy = fy + eb * rho * Math.sin(t); const q = Math.round(sy) * W + Math.round(sx); if (M[q] || (lum(q) >= z.letra.lum && neutro(q) <= z.letra.neutro)) continue; achados.push([i, amostra(data, sx, sy)]); break; }
+      if (!achados.length) continue; const tot = achados.reduce((t, [d]) => t + 1 / d, 0);
+      for (let c = 0; c < 4; c++) out[k * 4 + c] = Math.round(achados.reduce((t, [d, cc]) => t + cc[c] / d, 0) / tot);
+    }
   }
 
   if (z.modo === 'liso') {
