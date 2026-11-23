@@ -37,3 +37,23 @@ export const PASTAS_DE_LOGOS: PastaDeLogo[] = [
 export const pastaDeLogo = (id: string | null | undefined) => PASTAS_DE_LOGOS.find((p) => p.id === id) ?? null;
 /** as logos de uma pasta (na ordem da galeria) */
 export const logosDaPastaDe = (logos: LogoDaPasta[], pasta: string) => logos.filter((l) => l.pasta === pasta);
+
+/**
+ * META DO DONO (23/11/2026): pelo menos 8 logos em CADA pasta. A ordem abaixo é a ordem em que o dono completa as pastas
+ * (as que ele citou primeiro: farmácia, padaria, Dia das Mães, Dia dos Pais, São João, Carnaval…); a "próxima" é a
+ * primeira desta ordem que ainda não chegou a 8. Quando todas chegarem, o próximo passo é o dono mandar os FUNDOS.
+ */
+export const META_DE_LOGOS_POR_PASTA = 8;
+export const ORDEM_DA_META = [
+  'mercado', 'acougue', 'black-friday', 'natal', 'farmacia', 'padaria', 'dia-das-maes', 'dia-dos-pais', 'sao-joao', 'carnaval',
+  'hortifruti', 'adega', 'pet', 'beleza', 'suplementos', 'eletronicos', 'moda', 'pascoa', 'dia-dos-namorados', 'dia-das-criancas', 'fim-de-ano',
+];
+export interface ProgressoDaPasta { pasta: PastaDeLogo; tem: number; falta: number; completa: boolean }
+export function progressoDaMeta(logos: LogoDaPasta[]): { pastas: ProgressoDaPasta[]; completas: number; proxima: ProgressoDaPasta | null } {
+  const oficiais = logos.filter((l) => l.oficial);
+  const pastas = ORDEM_DA_META.map((id) => pastaDeLogo(id)!).filter(Boolean).map((pasta) => {
+    const tem = logosDaPastaDe(oficiais, pasta.id).length;
+    return { pasta, tem, falta: Math.max(0, META_DE_LOGOS_POR_PASTA - tem), completa: tem >= META_DE_LOGOS_POR_PASTA };
+  });
+  return { pastas, completas: pastas.filter((p) => p.completa).length, proxima: pastas.find((p) => !p.completa) ?? null };
+}

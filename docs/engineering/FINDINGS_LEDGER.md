@@ -4137,3 +4137,7 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
     - saiu o cantinho rosado.
   - Quarta das Carnes: o disco de tábuas recebe os veios da própria tábua (sem risco do brilho da beirada) e as pontas das letras saem pelo próprio sulco.
   - Natal (gorro): saíram os restos rosados do "SUA LOGO".
+- **Meta de 8 logos por pasta e capa de cada pasta (23/11/2026, pedido do dono):**
+  - `progressoDaMeta()` em `pastasDeLogos.ts`, na ordem de `ORDEM_DA_META`. Para o dono/ADM, a página Logos mostra "Meta: 8 logos em cada pasta · N de 21 completas · Próxima pasta: X (tem, faltam)" e o contador "n/8" em cada pasta.
+  - Cada pasta tem uma CAPA que gira as logos dela, 8 s cada, como as capas das mídias, com o nome do segmento embaixo.
+  - Quando todas as pastas baterem a meta, a própria tela lembra o dono de mandar os FUNDOS.

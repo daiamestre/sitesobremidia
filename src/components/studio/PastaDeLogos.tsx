@@ -15,7 +15,7 @@ import { meuSaldo } from '@/lib/studioai/api';
 import { LOGOS_OFICIAIS, logosDaPasta, type LogoDaPasta } from '@/lib/studio/logos';
 import { arquivarSelo, ehCentral, enviarParaBiblioteca, listarSelos } from '@/lib/tabloide/selos';
 import { guardarNoAcervo } from '@/lib/studio/acervo';
-import { PASTAS_DE_LOGOS, logosDaPastaDe, pastaDeLogo, type GrupoDePasta } from '@/lib/studio/pastasDeLogos';
+import { META_DE_LOGOS_POR_PASTA, PASTAS_DE_LOGOS, logosDaPastaDe, pastaDeLogo, progressoDaMeta, type GrupoDePasta } from '@/lib/studio/pastasDeLogos';
 import { desenharLogoPersonalizada, lembrarValores, pngDoCanvas, valoresIniciais, type ValoresDaLogo } from '@/lib/studio/logoPersonalizada';
 
 export const PASTA_LOGOS = 'logos';
@@ -160,8 +160,9 @@ const GRUPOS: Array<{ id: GrupoDePasta; nome: string }> = [{ id: 'segmento', nom
  * F-355 (pedido do dono, 22/11/2026): as logos separadas em PASTAS — por segmento do estabelecimento e por data
  * comemorativa. Primeiro aparecem as pastas; abriu uma, aparecem todas as logos dela.
  */
-export function PastasDasLogos({ logos, carregando, aoTocar, acaoDaSua, colunas = 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' }: {
+export function PastasDasLogos({ logos, carregando, aoTocar, acaoDaSua, colunas = 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5', mostrarMeta = false }: {
   logos: LogoDaPasta[]; carregando?: boolean; aoTocar?: (l: LogoDaPasta) => void; acaoDaSua?: (l: LogoDaPasta) => React.ReactNode; colunas?: string;
+  /** só o dono/ADM vê a meta de 8 logos por pasta */ mostrarMeta?: boolean;
 }) {
   const [aberta, setAberta] = useState<string | null>(null);
   const daPessoa = logos.filter((l) => !l.oficial);
@@ -182,20 +183,31 @@ export function PastasDasLogos({ logos, carregando, aoTocar, acaoDaSua, colunas 
       </section>
     );
   }
-  const capa = (lista: LogoDaPasta[]) => lista.slice(0, 4);
+  // CAPA DA PASTA (como as capas das mídias): as logos da pasta passando, 8 s cada, com o nome do segmento embaixo
   const Cartao = ({ id, nome, icone, lista }: { id: string; nome: string; icone: string; lista: LogoDaPasta[] }) => (
-    <button type="button" onClick={() => setAberta(id)} className={cn('rounded-xl border border-white/10 bg-[#14062f] p-2 text-left hover:border-[#B04DFF]/70', !lista.length && 'opacity-55')} data-testid="pasta-de-logos" aria-label={`Abrir a pasta ${nome}`}>
-      <span className="grid aspect-[3/2] w-full grid-cols-2 grid-rows-2 gap-0.5 overflow-hidden rounded-lg p-1" style={XADREZ}>
-        {lista.length ? capa(lista).map((l) => <img key={l.id} src={l.miniatura ?? l.url} alt="" loading="lazy" crossOrigin="anonymous" className={cn('h-full w-full object-contain', lista.length === 1 && 'col-span-2 row-span-2')} />)
-          : <span className="col-span-2 row-span-2 flex items-center justify-center text-4xl">{icone}</span>}
+    <button type="button" onClick={() => setAberta(id)} className={cn('overflow-hidden rounded-xl border border-white/10 bg-[#14062f] text-left hover:border-[#B04DFF]/70', !lista.length && 'opacity-70')} data-testid="pasta-de-logos" aria-label={`Abrir a pasta ${nome}`}>
+      <span className="relative block aspect-[3/2] w-full overflow-hidden" style={XADREZ}>
+        {lista.length ? <CapaQueGira slides={lista.map((l) => ({ chave: l.id, imagem: l.miniatura ?? l.url }))} ajuste="contain" className="h-full w-full p-1.5" />
+          : <span className="flex h-full w-full items-center justify-center text-5xl">{icone}</span>}
       </span>
-      <span className="mt-1 flex items-center gap-1 truncate text-xs font-bold text-white"><span>{icone}</span>{nome}</span>
-      <span className="text-[10px] text-slate-400">{lista.length ? `${lista.length} ${lista.length === 1 ? 'logo' : 'logos'}` : 'em breve'}</span>
+      <span className="flex items-center gap-1 bg-gradient-to-r from-[#5D1BFF] to-[#B04DFF] px-2 py-1.5 text-xs font-black uppercase tracking-wide text-white" data-testid="capa-da-pasta-nome"><span className="text-sm">{icone}</span><span className="truncate">{nome}</span></span>
+      <span className="flex items-center justify-between px-2 py-1 text-[10px] text-slate-400">
+        <span>{lista.length ? `${lista.length} ${lista.length === 1 ? 'logo' : 'logos'}` : 'em breve'}</span>
+        {mostrarMeta && id !== PASTA_SUAS && <span className={cn('font-bold', lista.length >= META_DE_LOGOS_POR_PASTA ? 'text-emerald-300' : 'text-[#FFD400]')} data-testid="meta-da-pasta">{lista.length >= META_DE_LOGOS_POR_PASTA ? '✓ meta' : `${lista.length}/${META_DE_LOGOS_POR_PASTA}`}</span>}
+      </span>
     </button>
   );
+  const meta = mostrarMeta ? progressoDaMeta(logos) : null;
   const oficiais = logos.filter((l) => l.oficial);
   return (
     <div className="space-y-4" data-testid="pastas-das-logos">
+      {meta && (
+        <div className="rounded-xl border border-[#FFD400]/40 bg-[#FFD400]/10 p-3 text-sm text-white" data-testid="meta-das-logos">
+          <p className="font-black">Meta: {META_DE_LOGOS_POR_PASTA} logos em cada pasta · {meta.completas} de {meta.pastas.length} pastas completas</p>
+          {meta.proxima ? <p className="text-xs text-slate-200">Próxima pasta: <b>{meta.proxima.pasta.icone} {meta.proxima.pasta.nome}</b> — tem {meta.proxima.tem}, faltam {meta.proxima.falta}.</p>
+            : <p className="text-xs text-slate-200">Todas as pastas chegaram à meta. Próximo passo: mandar os <b>fundos</b> que combinam com as logos.</p>}
+        </div>
+      )}
       <section className="space-y-2">
         <h2 className="text-sm font-bold text-white">Suas logos</h2>
         <div className={cn('grid gap-2', colunas)}><Cartao id={PASTA_SUAS} nome="Suas logos" icone="⭐" lista={daPessoa} /></div>
@@ -268,7 +280,7 @@ export function PastaDeLogos() {
         <button type="button" onClick={() => arquivo.current?.click()} disabled={enviando} className="flex h-10 items-center gap-1.5 rounded-lg bg-[#5D1BFF] px-3 text-sm font-semibold text-white hover:bg-[#8A2EFF]" data-testid="pasta-logos-enviar">{enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}Enviar logo</button>
         <Link to="/studio/logos" className="flex h-10 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-sm text-white hover:bg-white/5"><Sparkles className="h-4 w-4 text-[#FFD400]" />Criar logo 3D</Link>
       </div>
-      <PastasDasLogos logos={logos} carregando={carregando} aoTocar={(l) => (l.espacos ? setPersonalizando(l) : undefined)}
+      <PastasDasLogos logos={logos} carregando={carregando} mostrarMeta={central} aoTocar={(l) => (l.espacos ? setPersonalizando(l) : undefined)}
         acaoDaSua={(l) => (l.dono && l.dono === user?.id ? <button type="button" onClick={() => void tirar(l)} aria-label={`Tirar a logo ${l.nome}`} className="absolute right-3 top-3 rounded-lg bg-black/60 p-1.5 text-rose-300 hover:bg-black/80"><Trash2 className="h-4 w-4" /></button> : undefined)} />
     </div>
   );
