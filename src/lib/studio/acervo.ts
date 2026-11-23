@@ -18,10 +18,12 @@ const rpc = supabase.rpc.bind(supabase) as unknown as Rpc;
 export function guardarNoAcervo(o: { tipo: TipoNoAcervo; segmento?: string | null; nome?: string | null; url?: string | null; video?: string | null; dados?: unknown }): void {
   if (!o.url && !o.video && !o.dados) return;
   if (o.url && !/^(https:\/\/|\/studio\/)/.test(o.url)) return; // imagem local (blob:, data:) não vai
-  void rpc('studio_acervo_registrar', {
+  // F-355: o pedido do Supabase só tem .then (não tem .catch): sem o Promise.resolve, o .catch quebrava quem chamou
+  // (o envio de logo do Studio guardava a logo mas dava erro e não a escolhia)
+  void Promise.resolve().then(() => rpc('studio_acervo_registrar', {
     p_tipo: o.tipo, p_segmento: o.segmento ?? null, p_nome: o.nome ?? null, p_url: o.url ?? null,
     p_video: o.video && /^https:\/\//.test(o.video) ? o.video : null, p_dados: o.dados ?? null,
-  }).catch(() => undefined);
+  })).catch(() => undefined);
 }
 
 export async function listarAcervo(segmento?: string | null): Promise<ItemDoAcervo[]> {

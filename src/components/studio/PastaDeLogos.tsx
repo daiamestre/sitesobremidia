@@ -2,10 +2,10 @@
  * F-248 — pasta "Logos" do SOBRE MÍDIA Studio: as logos oficiais e as logos da pessoa (criadas no Criador de Logos ou enviadas).
  * Daqui sai a janela "Trocar logo", usada em todos os encartes e no Palco de Ofertas.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, FolderOpen, Loader2, RotateCcw, Sparkles, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, Check, FolderOpen, ImagePlus, Loader2, RotateCcw, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { CapaQueGira } from '@/components/media/CapaQueGira';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -14,6 +14,7 @@ import { meuSaldo } from '@/lib/studioai/api';
 import { LOGOS_OFICIAIS, logosDaPasta, type LogoDaPasta } from '@/lib/studio/logos';
 import { arquivarSelo, ehCentral, enviarParaBiblioteca, listarSelos } from '@/lib/tabloide/selos';
 import { guardarNoAcervo } from '@/lib/studio/acervo';
+import { desenharLogoPersonalizada, lembrarValores, pngDoCanvas, valoresIniciais, type ValoresDaLogo } from '@/lib/studio/logoPersonalizada';
 
 export const PASTA_LOGOS = 'logos';
 const XADREZ = { backgroundImage: 'repeating-conic-gradient(#2a2340 0 25%, #1c1630 0 50%)', backgroundSize: '18px 18px' };
@@ -51,6 +52,7 @@ function CartaoDaLogo({ l, aoTocar, acao }: { l: LogoDaPasta; aoTocar?: () => vo
       <span className="flex aspect-[3/2] w-full items-center justify-center overflow-hidden rounded-lg p-2" style={XADREZ}><img src={l.miniatura ?? l.url} alt="" loading="lazy" crossOrigin="anonymous" className="max-h-full max-w-full object-contain" /></span>
       <span className="mt-1 block truncate text-xs font-semibold text-white">{l.nome}</span>
       {l.oficial && <span className="text-[10px] font-semibold text-[#FFD400]">OFICIAL</span>}
+      {l.espacos && <span className="ml-1 text-[10px] font-semibold text-emerald-300" data-testid="logo-personalizavel">· SEU NOME E LOGO</span>}
     </>
   );
   return (
@@ -63,11 +65,100 @@ function CartaoDaLogo({ l, aoTocar, acao }: { l: LogoDaPasta; aoTocar?: () => vo
 
 const CAMPO_ARQUIVO = 'image/png,image/jpeg,image/webp';
 
+/**
+ * F-355 (pedido do dono, 22/11/2026): logo com faixa/placa/espaço → o usuário escreve o texto (começa com o nome da empresa)
+ * e, se quiser, põe a logo da empresa dele. Tudo vira UMA imagem (o texto fica preso na logo) e vai para "Suas logos".
+ * Sem a logo do usuário, o espaço dela não aparece.
+ */
+export function PersonalizarLogo({ logo, aoUsar, aoFechar }: { logo: LogoDaPasta; aoUsar: (l: LogoDaPasta) => void; aoFechar: () => void }) {
+  const espacos = logo.espacos!;
+  const { logos } = useLogosDaPasta();
+  const { enviar, enviando } = useEnviarLogo();
+  const [v, setV] = useState<ValoresDaLogo>(() => valoresIniciais(logo.id, espacos));
+  const [previa, setPrevia] = useState<string | null>(null);
+  const [escolhendo, setEscolhendo] = useState(false);
+  const [gravando, setGravando] = useState(false);
+  const arquivo = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    let vivo = true;
+    const t = setTimeout(() => { desenharLogoPersonalizada(logo, v).then((c) => { if (vivo) setPrevia(c.toDataURL('image/png')); }).catch(() => { if (vivo) setPrevia(logo.url); }); }, 180);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [logo, v]);
+  const daPessoa = logos.filter((l) => !l.oficial);
+  const usar = async () => {
+    setGravando(true);
+    try {
+      lembrarValores(logo.id, v);
+      const texto = Object.values(v.textos).find((x) => x.trim())?.trim();
+      const blob = await pngDoCanvas(await desenharLogoPersonalizada(logo, v));
+      const nome = `${logo.nome}${texto ? ` – ${texto}` : ''}`.slice(0, 60);
+      const l = await enviar(new File([blob], `${nome.replace(/[\\/:*?"<>|]/g, ' ')}.png`, { type: 'image/png' }));
+      if (l) aoUsar(l);
+    } catch (e) { toast.error((e as Error).message || 'Não foi possível montar a logo.'); } finally { setGravando(false); }
+  };
+  const ocupado = gravando || enviando;
+  return (
+    <Dialog open onOpenChange={(o) => !o && aoFechar()}>
+      <DialogContent className="max-h-[92dvh] max-w-3xl overflow-y-auto border-white/10 bg-[#0f0428] text-white" data-testid="personalizar-logo">
+        <DialogHeader><DialogTitle>{logo.nome}: seu nome e sua logo</DialogTitle></DialogHeader>
+        <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
+          <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl p-3" style={XADREZ}>
+            {previa ? <img src={previa} alt={`Prévia da logo ${logo.nome}`} className="max-h-full max-w-full object-contain" data-testid="personalizar-previa" /> : <Loader2 className="h-6 w-6 animate-spin text-slate-300" />}
+          </div>
+          <div className="space-y-3">
+            {espacos.textos.map((t) => (
+              <label key={t.id} className="block space-y-1">
+                <span className="text-xs font-semibold text-slate-300">Texto · {t.rotulo}</span>
+                <input value={v.textos[t.id] ?? ''} maxLength={40} placeholder="Nome da sua empresa" onChange={(e) => setV((x) => ({ ...x, textos: { ...x.textos, [t.id]: e.target.value } }))}
+                  className="h-11 w-full rounded-lg border border-white/15 bg-black/30 px-3 text-sm font-bold text-white outline-none focus:border-[#B04DFF]" data-testid="personalizar-texto" />
+                {t.somePorLogo && v.logoUrl && <span className="text-[11px] text-slate-400">Com a sua logo no mesmo lugar, este texto não aparece.</span>}
+              </label>
+            ))}
+            {espacos.logo && (
+              <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-2.5">
+                <p className="text-xs font-semibold text-slate-300">Sua logo · {espacos.logo.rotulo} <span className="font-normal text-slate-400">(opcional)</span></p>
+                {v.logoUrl ? (
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-14 w-20 items-center justify-center rounded-lg p-1" style={XADREZ}><img src={v.logoUrl} alt="" className="max-h-full max-w-full object-contain" /></span>
+                    <button type="button" onClick={() => setEscolhendo(true)} className="h-9 rounded-lg border border-white/15 px-2.5 text-xs text-white hover:bg-white/5">Trocar</button>
+                    <button type="button" onClick={() => setV((x) => ({ ...x, logoUrl: null }))} className="flex h-9 items-center gap-1 rounded-lg border border-white/15 px-2.5 text-xs text-rose-200 hover:bg-rose-500/10" data-testid="personalizar-tirar-logo"><X className="h-3.5 w-3.5" />Tirar</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setEscolhendo(true)} className="flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-[#5D1BFF] text-xs font-semibold text-white hover:bg-[#8A2EFF]" data-testid="personalizar-por-logo"><ImagePlus className="h-4 w-4" />Pôr a logo da sua empresa</button>
+                )}
+                {escolhendo && (
+                  <div className="space-y-2" data-testid="personalizar-suas-logos">
+                    <input ref={arquivo} type="file" accept={CAMPO_ARQUIVO} className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; const l = await enviar(f); if (l) { setV((x) => ({ ...x, logoUrl: l.url })); setEscolhendo(false); } }} />
+                    <button type="button" onClick={() => arquivo.current?.click()} disabled={enviando} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#B04DFF]/60 text-xs font-semibold text-white hover:bg-[#5D1BFF]/20">{enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}Enviar do aparelho</button>
+                    {daPessoa.length ? <div className="grid max-h-48 grid-cols-3 gap-1.5 overflow-y-auto">{daPessoa.map((l) => (
+                      <button key={l.id} type="button" title={l.nome} onClick={() => { setV((x) => ({ ...x, logoUrl: l.url })); setEscolhendo(false); }} className="flex aspect-[3/2] items-center justify-center rounded-lg border border-white/10 p-1 hover:border-[#FFD400]" style={XADREZ}>
+                        <img src={l.miniatura ?? l.url} alt={l.nome} loading="lazy" crossOrigin="anonymous" className="max-h-full max-w-full object-contain" />
+                      </button>))}</div>
+                      : <p className="text-[11px] text-slate-400">Suas logos aparecem aqui. Envie a logo da sua empresa (PNG sem fundo fica melhor).</p>}
+                  </div>
+                )}
+              </div>
+            )}
+            <p className="text-[11px] text-slate-400">O texto e a sua logo ficam presos na logo: ao mover, aumentar ou girar, vão juntos.</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => void usar()} disabled={ocupado} className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#FFD400] px-3 text-sm font-black text-[#1a0b3d] hover:brightness-105 disabled:opacity-60" data-testid="personalizar-usar">{ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}Usar esta logo</button>
+              <button type="button" onClick={() => aoUsar(logo)} disabled={ocupado} className="h-11 rounded-lg border border-white/15 px-3 text-xs text-white hover:bg-white/5" data-testid="personalizar-sem">Usar sem texto</button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /** A janela "Trocar logo": escolher da pasta ou enviar uma nova (que já fica guardada na pasta). */
 export function EscolherLogo({ titulo, aoEscolher, aoRestaurar, aoFechar }: { titulo: string; aoEscolher: (l: LogoDaPasta) => void; /** volta para a logo padrão do encarte */ aoRestaurar?: () => void; aoFechar: () => void }) {
   const { logos, carregando } = useLogosDaPasta();
   const { enviar, enviando } = useEnviarLogo();
   const arquivo = useRef<HTMLInputElement>(null);
+  const [personalizando, setPersonalizando] = useState<LogoDaPasta | null>(null);
+  // F-355: logo com faixa/espaço abre primeiro o "seu nome e sua logo"
+  if (personalizando) return <PersonalizarLogo logo={personalizando} aoUsar={aoEscolher} aoFechar={() => setPersonalizando(null)} />;
   return (
     <Dialog open onOpenChange={(o) => !o && aoFechar()}>
       <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto border-white/10 bg-[#0f0428] text-white" data-testid="escolher-logo">
@@ -79,7 +170,7 @@ export function EscolherLogo({ titulo, aoEscolher, aoRestaurar, aoFechar }: { ti
           {aoRestaurar && <button type="button" onClick={aoRestaurar} className="flex h-10 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-sm text-white hover:bg-white/5" data-testid="logo-restaurar"><RotateCcw className="h-4 w-4" />Logo original do encarte</button>}
         </div>
         {carregando ? <p className="flex items-center gap-2 py-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Abrindo a pasta…</p> : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{logos.map((l) => <CartaoDaLogo key={l.id} l={l} aoTocar={() => aoEscolher(l)} />)}</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{logos.map((l) => <CartaoDaLogo key={l.id} l={l} aoTocar={() => (l.espacos ? setPersonalizando(l) : aoEscolher(l))} />)}</div>
         )}
       </DialogContent>
     </Dialog>
@@ -103,9 +194,11 @@ export function PastaDeLogos() {
     try { await arquivarSelo(l.id); await qc.invalidateQueries({ queryKey: ['studio-logos-pasta'] }); toast.success('Logo tirada da pasta.'); }
     catch (e) { toast.error((e as Error).message || 'Não foi possível tirar a logo.'); }
   };
+  const [personalizando, setPersonalizando] = useState<LogoDaPasta | null>(null);
   const oficiais = logos.filter((l) => l.oficial), daPessoa = logos.filter((l) => !l.oficial);
   return (
     <div className="space-y-4" data-testid="studio-pasta-logos">
+      {personalizando && <PersonalizarLogo logo={personalizando} aoUsar={() => setPersonalizando(null)} aoFechar={() => setPersonalizando(null)} />}
       <div className="flex flex-wrap items-center gap-2">
         <Link to="/studio" className="flex h-10 items-center gap-1 rounded-lg px-2 text-sm text-slate-300 hover:bg-white/5"><ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">Modelos</span></Link>
         <div className="mr-auto min-w-0">
@@ -119,7 +212,7 @@ export function PastaDeLogos() {
       </div>
       <section className="space-y-2">
         <h2 className="text-sm font-bold text-white">Logos oficiais</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{oficiais.map((l) => <CartaoDaLogo key={l.id} l={l} />)}</div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{oficiais.map((l) => <CartaoDaLogo key={l.id} l={l} aoTocar={l.espacos ? () => setPersonalizando(l) : undefined} />)}</div>
       </section>
       <section className="space-y-2">
         <h2 className="text-sm font-bold text-white">Suas logos</h2>

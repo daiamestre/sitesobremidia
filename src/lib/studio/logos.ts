@@ -4,8 +4,9 @@
 import { logosDoCabecalho, type Selo } from '@/lib/tabloide/selos';
 import { SEGMENTOS_DE_OFERTA, logoDoSegmento, type SegmentoNovo } from './segmentosDeOferta';
 import { LOGOS_DE_PROMOCAO } from './logosDePromocao';
+import type { EspacosDaLogo } from './logoPersonalizada';
 
-export interface LogoDaPasta { id: string; nome: string; url: string; largura: number; altura: number; oficial?: boolean; /** dono na biblioteca (a própria pessoa pode tirar) */ dono?: string | null; miniatura?: string | null }
+export interface LogoDaPasta { id: string; nome: string; url: string; largura: number; altura: number; oficial?: boolean; /** dono na biblioteca (a própria pessoa pode tirar) */ dono?: string | null; miniatura?: string | null; /** F-355: faixas e espaços que o usuário personaliza (texto e a logo dele) */ espacos?: EspacosDaLogo }
 
 export const LOGO_MEGA_OFERTA: LogoDaPasta = { id: 'oficial-mega-oferta', nome: 'Mega Oferta', url: '/studio/logos/mega-oferta.webp', largura: 1531, altura: 1024, oficial: true };
 export const LOGO_SEMANA_DO_FRANGO: LogoDaPasta = { id: 'oficial-semana-do-frango', nome: 'Semana do Frango', url: '/studio/logos/semana-do-frango.webp', largura: 1460, altura: 1024, oficial: true };

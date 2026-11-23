@@ -5,6 +5,9 @@
 // O nome leva a marca do conteúdo (<id>-<hash>): o aplicativo guarda imagens no aparelho por 30 dias, e um nome novo garante que
 // ninguém veja uma versão antiga. A miniatura (só para a lista da galeria) e a lista em src/lib/studio/logosDePromocao.ts são
 // geradas aqui.
+// EXCEÇÃO PEDIDA PELO DONO (22/11/2026): logo com dizeres de modelo ("YOUR LOGO HERE", "ALPHA BACKGROUND", xadrez pintado)
+// publica a versão em que SÓ esses dizeres saíram (scripts/studio/espaco-da-logo.mjs, conferida pixel a pixel no teste);
+// as faixas e espaços que o usuário personaliza ficam em scripts/studio/espacos-das-logos.json.
 // Uso: node scripts/studio/logos-de-promocao.mjs <imagem> <id-em-minusculas> "<Nome da logo>"
 //      node scripts/studio/logos-de-promocao.mjs --lista   (só refaz a lista a partir das logos já gravadas)
 import crypto from 'node:crypto';
@@ -19,11 +22,13 @@ const LISTA_TS = 'src/lib/studio/logosDePromocao.ts';
 const ORIGINAIS = path.resolve(RAIZ, '..', 'logos-de-promocao-originais');
 fs.mkdirSync(PASTA, { recursive: true });
 
+const ESPACOS = JSON.parse(fs.readFileSync('scripts/studio/espacos-das-logos.json', 'utf8'));
 const lerManifesto = () => (fs.existsSync(MANIFESTO) ? JSON.parse(fs.readFileSync(MANIFESTO, 'utf8')) : []);
 
 function escreverLista(itens) {
   fs.writeFileSync(MANIFESTO, `${JSON.stringify(itens, null, 2)}\n`);
-  const linhas = itens.map((l) => `  { id: 'promocao-${l.id}', nome: ${JSON.stringify(l.nome)}, url: '/studio/logos/promocao/${l.arquivo}', miniatura: '/studio/logos/promocao/${l.mini}', largura: ${l.largura}, altura: ${l.altura}, oficial: true },`);
+  const espacos = (l) => (ESPACOS[l.id] ? `, espacos: ${JSON.stringify({ ...ESPACOS[l.id], ...(l.frente ? { frente: `/studio/logos/promocao/${l.frente}` } : {}) })}` : '');
+  const linhas = itens.map((l) => `  { id: 'promocao-${l.id}', nome: ${JSON.stringify(l.nome)}, url: '/studio/logos/promocao/${l.arquivo}', miniatura: '/studio/logos/promocao/${l.mini}', largura: ${l.largura}, altura: ${l.altura}, oficial: true${espacos(l)} },`);
   fs.writeFileSync(LISTA_TS, `// F-355 — logos de promoção enviadas pelo dono (as mais novas primeiro). ARQUIVO GERADO por
 // scripts/studio/logos-de-promocao.mjs: para pôr uma logo nova, rode o script (não edite à mão).
 import type { LogoDaPasta } from './logos';
@@ -36,20 +41,27 @@ ${linhas.join('\n')}
 
 async function porLogo(arquivo, id, nome) {
   if (!/^[a-z0-9-]+$/.test(id)) throw new Error('id só com letras minúsculas, números e hífen');
-  const original = fs.readFileSync(arquivo);
+  const doDono = fs.readFileSync(arquivo);
+  fs.mkdirSync(ORIGINAIS, { recursive: true });
+  fs.copyFileSync(arquivo, path.join(ORIGINAIS, `${id}${path.extname(arquivo).toLowerCase() || '.png'}`));
+  // a versão só sem os dizeres de modelo (feita por espaco-da-logo.mjs a partir DESTE arquivo do dono), quando houver
+  const marcaDoDono = crypto.createHash('sha256').update(doDono).digest('hex').slice(0, 8);
+  const limpa = path.join(ORIGINAIS, `${id}-limpa-${marcaDoDono}.png`);
+  const frenteOrig = path.join(ORIGINAIS, `${id}-frente-${marcaDoDono}.png`);
+  const original = fs.existsSync(limpa) ? fs.readFileSync(limpa) : doDono;
   const marca = crypto.createHash('sha256').update(original).digest('hex').slice(0, 8);
-  for (const x of fs.readdirSync(PASTA)) if (new RegExp(`^${id}(-[0-9a-f]{8})?(-mini)?\.`).test(x)) fs.rmSync(`${PASTA}/${x}`);
+  for (const x of fs.readdirSync(PASTA)) if (new RegExp(`^${id}(-[0-9a-f]{8})?(-mini|-frente)?\.`).test(x)) fs.rmSync(`${PASTA}/${x}`);
   const nomeArq = `${id}-${marca}${(path.extname(arquivo) || '.png').toLowerCase()}`;
   const mini = `${id}-${marca}-mini.webp`;
   fs.writeFileSync(`${PASTA}/${nomeArq}`, original); // o MESMO arquivo, sem nenhuma mudança
+  const frente = fs.existsSync(limpa) && fs.existsSync(frenteOrig) ? `${id}-${marca}-frente.png` : null;
+  if (frente) fs.copyFileSync(frenteOrig, `${PASTA}/${frente}`);
   await sharp(original).resize(480, 320, { fit: 'inside' }).webp({ quality: 90, alphaQuality: 100 }).toFile(`${PASTA}/${mini}`);
   const m = await sharp(original).metadata();
-  fs.mkdirSync(ORIGINAIS, { recursive: true });
-  fs.copyFileSync(arquivo, path.join(ORIGINAIS, `${id}${path.extname(arquivo).toLowerCase() || '.png'}`));
   const itens = lerManifesto().filter((l) => l.id !== id);
-  itens.unshift({ id, nome, arquivo: nomeArq, mini, largura: m.width, altura: m.height });
+  itens.unshift({ id, nome, arquivo: nomeArq, mini, largura: m.width, altura: m.height, ...(fs.existsSync(limpa) ? { limpa: true } : {}), ...(frente ? { frente } : {}) });
   escreverLista(itens);
-  console.log(`ok ${id} ${m.width}x${m.height} — o mesmo arquivo que o dono mandou → ${PASTA}/${nomeArq}`);
+  console.log(`ok ${id} ${m.width}x${m.height} — ${fs.existsSync(limpa) ? "o arquivo do dono só sem os dizeres de modelo" : "o mesmo arquivo que o dono mandou"} → ${PASTA}/${nomeArq}`);
 }
 
 const [a, b, c] = process.argv.slice(2);

@@ -1,5 +1,531 @@
 [
   {
+    "id": "black-friday-dados",
+    "nome": "Black Friday (dados)",
+    "arquivo": "black-friday-dados-318df2b3.png",
+    "mini": "black-friday-dados-318df2b3-mini.webp",
+    "largura": 1342,
+    "altura": 1172,
+    "limpa": true,
+    "frente": "black-friday-dados-318df2b3-frente.png"
+  },
+  {
+    "id": "black-friday-megafone",
+    "nome": "Black Friday (megafone)",
+    "arquivo": "black-friday-megafone-0aaeefdf.png",
+    "mini": "black-friday-megafone-0aaeefdf-mini.webp",
+    "largura": 1332,
+    "altura": 1181
+  },
+  {
+    "id": "mes-da-black-friday",
+    "nome": "Mês da Black Friday",
+    "arquivo": "mes-da-black-friday-a51ec4e0.png",
+    "mini": "mes-da-black-friday-a51ec4e0-mini.webp",
+    "largura": 1244,
+    "altura": 1264
+  },
+  {
+    "id": "black-friday-azul",
+    "nome": "Black Friday (azul)",
+    "arquivo": "black-friday-azul-0a603624.png",
+    "mini": "black-friday-azul-0a603624-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "fecha-mes",
+    "nome": "Fecha Mês",
+    "arquivo": "fecha-mes-88ddc2b1.png",
+    "mini": "fecha-mes-88ddc2b1-mini.webp",
+    "largura": 1506,
+    "altura": 1045
+  },
+  {
+    "id": "esquenta-black-friday-laranja",
+    "nome": "Esquenta Black Friday (laranja)",
+    "arquivo": "esquenta-black-friday-laranja-7eb21698.png",
+    "mini": "esquenta-black-friday-laranja-7eb21698-mini.webp",
+    "largura": 1229,
+    "altura": 1280
+  },
+  {
+    "id": "black-friday-calendario",
+    "nome": "Black Friday (calendário)",
+    "arquivo": "black-friday-calendario-7e041114.png",
+    "mini": "black-friday-calendario-7e041114-mini.webp",
+    "largura": 1513,
+    "altura": 1039
+  },
+  {
+    "id": "esquenta-black-friday-vermelha",
+    "nome": "Esquenta Black Friday (vermelha)",
+    "arquivo": "esquenta-black-friday-vermelha-31967e42.png",
+    "mini": "esquenta-black-friday-vermelha-31967e42-mini.webp",
+    "largura": 1287,
+    "altura": 1222
+  },
+  {
+    "id": "semana-black-friday-prata",
+    "nome": "Semana Black Friday (prata)",
+    "arquivo": "semana-black-friday-prata-9cb6f96c.png",
+    "mini": "semana-black-friday-prata-9cb6f96c-mini.webp",
+    "largura": 1316,
+    "altura": 1195
+  },
+  {
+    "id": "black-das-black",
+    "nome": "Black das Black",
+    "arquivo": "black-das-black-cfdd2735.png",
+    "mini": "black-das-black-cfdd2735-mini.webp",
+    "largura": 1327,
+    "altura": 1186
+  },
+  {
+    "id": "black-friday-raios",
+    "nome": "Black Friday (raios)",
+    "arquivo": "black-friday-raios-2fe36bc9.png",
+    "mini": "black-friday-raios-2fe36bc9-mini.webp",
+    "largura": 1321,
+    "altura": 1191
+  },
+  {
+    "id": "semana-black-friday-amarela",
+    "nome": "Semana Black Friday (amarela)",
+    "arquivo": "semana-black-friday-amarela-5ccc748b.png",
+    "mini": "semana-black-friday-amarela-5ccc748b-mini.webp",
+    "largura": 1518,
+    "altura": 1036
+  },
+  {
+    "id": "esquenta-black-friday-preta",
+    "nome": "Esquenta Black Friday (preta)",
+    "arquivo": "esquenta-black-friday-preta-6cac377a.png",
+    "mini": "esquenta-black-friday-preta-6cac377a-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "black-friday-carrinho",
+    "nome": "Black Friday (carrinho)",
+    "arquivo": "black-friday-carrinho-25da3132.png",
+    "mini": "black-friday-carrinho-25da3132-mini.webp",
+    "largura": 1296,
+    "altura": 1214
+  },
+  {
+    "id": "black-friday-placa",
+    "nome": "Black Friday (placa)",
+    "arquivo": "black-friday-placa-ae273a89.png",
+    "mini": "black-friday-placa-ae273a89-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "black-friday-redonda",
+    "nome": "Black Friday (redonda)",
+    "arquivo": "black-friday-redonda-fa979046.png",
+    "mini": "black-friday-redonda-fa979046-mini.webp",
+    "largura": 1254,
+    "altura": 1254
+  },
+  {
+    "id": "natal-de-ofertas-coroa",
+    "nome": "Natal de Ofertas (coroa)",
+    "arquivo": "natal-de-ofertas-coroa-fb888db6.png",
+    "mini": "natal-de-ofertas-coroa-fb888db6-mini.webp",
+    "largura": 1254,
+    "altura": 1254
+  },
+  {
+    "id": "ofertas-de-natal-dourado",
+    "nome": "Ofertas de Natal (dourado)",
+    "arquivo": "ofertas-de-natal-dourado-1f70880b.png",
+    "mini": "ofertas-de-natal-dourado-1f70880b-mini.webp",
+    "largura": 1305,
+    "altura": 1206
+  },
+  {
+    "id": "ofertas-de-natal-azul",
+    "nome": "Ofertas de Natal (azul)",
+    "arquivo": "ofertas-de-natal-azul-9b71bcb2.png",
+    "mini": "ofertas-de-natal-azul-9b71bcb2-mini.webp",
+    "largura": 1269,
+    "altura": 1240
+  },
+  {
+    "id": "natal-de-ofertas-gorro",
+    "nome": "Natal de Ofertas (gorro)",
+    "arquivo": "natal-de-ofertas-gorro-d7ccb76e.png",
+    "mini": "natal-de-ofertas-gorro-d7ccb76e-mini.webp",
+    "largura": 1232,
+    "altura": 1277,
+    "limpa": true
+  },
+  {
+    "id": "natal-de-ofertas-escudo",
+    "nome": "Natal de Ofertas (escudo)",
+    "arquivo": "natal-de-ofertas-escudo-45918acb.png",
+    "mini": "natal-de-ofertas-escudo-45918acb-mini.webp",
+    "largura": 1379,
+    "altura": 1141
+  },
+  {
+    "id": "mega-natal-de-ofertas-verde",
+    "nome": "Mega Natal de Ofertas (verde)",
+    "arquivo": "mega-natal-de-ofertas-verde-e27ff73d.png",
+    "mini": "mega-natal-de-ofertas-verde-e27ff73d-mini.webp",
+    "largura": 1272,
+    "altura": 1236
+  },
+  {
+    "id": "mega-natal-de-ofertas-vermelho",
+    "nome": "Mega Natal de Ofertas (vermelho)",
+    "arquivo": "mega-natal-de-ofertas-vermelho-4ca12ba3.png",
+    "mini": "mega-natal-de-ofertas-vermelho-4ca12ba3-mini.webp",
+    "largura": 1270,
+    "altura": 1239
+  },
+  {
+    "id": "ofertas-natalinas",
+    "nome": "Ofertas Natalinas",
+    "arquivo": "ofertas-natalinas-2eb36849.png",
+    "mini": "ofertas-natalinas-2eb36849-mini.webp",
+    "largura": 1266,
+    "altura": 1243
+  },
+  {
+    "id": "natal-de-premios",
+    "nome": "Natal de Prêmios",
+    "arquivo": "natal-de-premios-209efde6.png",
+    "mini": "natal-de-premios-209efde6-mini.webp",
+    "largura": 1278,
+    "altura": 1231
+  },
+  {
+    "id": "natal-de-ofertas-enfeite",
+    "nome": "Natal de Ofertas (enfeite)",
+    "arquivo": "natal-de-ofertas-enfeite-2a53daa0.png",
+    "mini": "natal-de-ofertas-enfeite-2a53daa0-mini.webp",
+    "largura": 1230,
+    "altura": 1278
+  },
+  {
+    "id": "ofertas-do-natal",
+    "nome": "Ofertas do Natal",
+    "arquivo": "ofertas-do-natal-a578d295.png",
+    "mini": "ofertas-do-natal-a578d295-mini.webp",
+    "largura": 1275,
+    "altura": 1234
+  },
+  {
+    "id": "natal-premiado-bolas",
+    "nome": "Natal Premiado (bolas)",
+    "arquivo": "natal-premiado-bolas-591a158c.png",
+    "mini": "natal-premiado-bolas-591a158c-mini.webp",
+    "largura": 1245,
+    "altura": 1263
+  },
+  {
+    "id": "natal-premiado-gorro",
+    "nome": "Natal Premiado (gorro)",
+    "arquivo": "natal-premiado-gorro-3c2e94a0.png",
+    "mini": "natal-premiado-gorro-3c2e94a0-mini.webp",
+    "largura": 1225,
+    "altura": 1284
+  },
+  {
+    "id": "ofertas-de-natal-faixa",
+    "nome": "Ofertas de Natal (faixa)",
+    "arquivo": "ofertas-de-natal-faixa-856f2e4c.png",
+    "mini": "ofertas-de-natal-faixa-856f2e4c-mini.webp",
+    "largura": 1232,
+    "altura": 1277
+  },
+  {
+    "id": "natal-de-ofertas-guirlanda",
+    "nome": "Natal de Ofertas (guirlanda)",
+    "arquivo": "natal-de-ofertas-guirlanda-8cf03fae.png",
+    "mini": "natal-de-ofertas-guirlanda-8cf03fae-mini.webp",
+    "largura": 1239,
+    "altura": 1269
+  },
+  {
+    "id": "feliz-natal-gorro",
+    "nome": "Feliz Natal (gorro)",
+    "arquivo": "feliz-natal-gorro-cb8cbac2.png",
+    "mini": "feliz-natal-gorro-cb8cbac2-mini.webp",
+    "largura": 1236,
+    "altura": 1272
+  },
+  {
+    "id": "feliz-natal-laco",
+    "nome": "Feliz Natal (laço)",
+    "arquivo": "feliz-natal-laco-66ff2ed4.png",
+    "mini": "feliz-natal-laco-66ff2ed4-mini.webp",
+    "largura": 1237,
+    "altura": 1271
+  },
+  {
+    "id": "presentes-de-natal",
+    "nome": "Presentes de Natal",
+    "arquivo": "presentes-de-natal-0e00a4be.png",
+    "mini": "presentes-de-natal-0e00a4be-mini.webp",
+    "largura": 1247,
+    "altura": 1261
+  },
+  {
+    "id": "natal-de-ofertas-dourado",
+    "nome": "Natal de Ofertas (dourado)",
+    "arquivo": "natal-de-ofertas-dourado-6dc7891c.png",
+    "mini": "natal-de-ofertas-dourado-6dc7891c-mini.webp",
+    "largura": 1289,
+    "altura": 1220
+  },
+  {
+    "id": "natal-de-ofertas-verde",
+    "nome": "Natal de Ofertas (verde)",
+    "arquivo": "natal-de-ofertas-verde-c1112e35.png",
+    "mini": "natal-de-ofertas-verde-c1112e35-mini.webp",
+    "largura": 1346,
+    "altura": 1169
+  },
+  {
+    "id": "natal-de-ofertas-vermelho",
+    "nome": "Natal de Ofertas (vermelho)",
+    "arquivo": "natal-de-ofertas-vermelho-2385274e.png",
+    "mini": "natal-de-ofertas-vermelho-2385274e-mini.webp",
+    "largura": 1399,
+    "altura": 1124
+  },
+  {
+    "id": "saldao-de-natal",
+    "nome": "Saldão de Natal",
+    "arquivo": "saldao-de-natal-2336ad7a.png",
+    "mini": "saldao-de-natal-2336ad7a-mini.webp",
+    "largura": 1238,
+    "altura": 1271
+  },
+  {
+    "id": "ofertao-da-carne",
+    "nome": "Ofertão da Carne",
+    "arquivo": "ofertao-da-carne-7f1c0a06.png",
+    "mini": "ofertao-da-carne-7f1c0a06-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "sexta-da-carne-touro",
+    "nome": "Sexta da Carne (touro)",
+    "arquivo": "sexta-da-carne-touro-7c89ad12.png",
+    "mini": "sexta-da-carne-touro-7c89ad12-mini.webp",
+    "largura": 1240,
+    "altura": 1269
+  },
+  {
+    "id": "sexta-da-carne-churrasqueira",
+    "nome": "Sexta da Carne (churrasqueira)",
+    "arquivo": "sexta-da-carne-churrasqueira-07961a76.png",
+    "mini": "sexta-da-carne-churrasqueira-07961a76-mini.webp",
+    "largura": 1128,
+    "altura": 1394
+  },
+  {
+    "id": "semana-do-acougue",
+    "nome": "Semana do Açougue",
+    "arquivo": "semana-do-acougue-95669f99.png",
+    "mini": "semana-do-acougue-95669f99-mini.webp",
+    "largura": 1233,
+    "altura": 1276
+  },
+  {
+    "id": "sexta-da-carne-brasa",
+    "nome": "Sexta da Carne (brasa)",
+    "arquivo": "sexta-da-carne-brasa-2a444a58.png",
+    "mini": "sexta-da-carne-brasa-2a444a58-mini.webp",
+    "largura": 1228,
+    "altura": 1281,
+    "limpa": true,
+    "frente": "sexta-da-carne-brasa-2a444a58-frente.png"
+  },
+  {
+    "id": "arraia-de-ofertas",
+    "nome": "Arraiá de Ofertas",
+    "arquivo": "arraia-de-ofertas-53b5a41e.png",
+    "mini": "arraia-de-ofertas-53b5a41e-mini.webp",
+    "largura": 1696,
+    "altura": 927
+  },
+  {
+    "id": "venha-economizar-de-verdade",
+    "nome": "Venha Economizar de Verdade!",
+    "arquivo": "venha-economizar-de-verdade-9049d3d4.png",
+    "mini": "venha-economizar-de-verdade-9049d3d4-mini.webp",
+    "largura": 1278,
+    "altura": 1230
+  },
+  {
+    "id": "festival-acougue",
+    "nome": "Festival Açougue",
+    "arquivo": "festival-acougue-40230890.png",
+    "mini": "festival-acougue-40230890-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "operacao-detona-preco",
+    "nome": "Operação Detona Preço",
+    "arquivo": "operacao-detona-preco-315e4507.png",
+    "mini": "operacao-detona-preco-315e4507-mini.webp",
+    "largura": 1207,
+    "altura": 1303
+  },
+  {
+    "id": "quarta-das-carnes",
+    "nome": "Quarta das Carnes",
+    "arquivo": "quarta-das-carnes-27ebbe39.png",
+    "mini": "quarta-das-carnes-27ebbe39-mini.webp",
+    "largura": 1236,
+    "altura": 1273,
+    "limpa": true
+  },
+  {
+    "id": "semana-black-friday-vermelha",
+    "nome": "Semana Black Friday (vermelha)",
+    "arquivo": "semana-black-friday-vermelha-d8d95d9c.png",
+    "mini": "semana-black-friday-vermelha-d8d95d9c-mini.webp",
+    "largura": 1278,
+    "altura": 1231
+  },
+  {
+    "id": "fim-de-semana-de-ofertas",
+    "nome": "Fim de Semana de Ofertas",
+    "arquivo": "fim-de-semana-de-ofertas-8f6f6c55.png",
+    "mini": "fim-de-semana-de-ofertas-8f6f6c55-mini.webp",
+    "largura": 1277,
+    "altura": 1231
+  },
+  {
+    "id": "ofertas-do-acougue",
+    "nome": "Ofertas do Açougue",
+    "arquivo": "ofertas-do-acougue-241a4e22.png",
+    "mini": "ofertas-do-acougue-241a4e22-mini.webp",
+    "largura": 1244,
+    "altura": 1264
+  },
+  {
+    "id": "semana-black-friday-laranja",
+    "nome": "Semana Black Friday (laranja)",
+    "arquivo": "semana-black-friday-laranja-787c83a3.png",
+    "mini": "semana-black-friday-laranja-787c83a3-mini.webp",
+    "largura": 1408,
+    "altura": 1117
+  },
+  {
+    "id": "sempre-o-menor-preco",
+    "nome": "Sempre o Menor Preço",
+    "arquivo": "sempre-o-menor-preco-5bacc346.png",
+    "mini": "sempre-o-menor-preco-5bacc346-mini.webp",
+    "largura": 1266,
+    "altura": 1242
+  },
+  {
+    "id": "terca-de-ofertas",
+    "nome": "Terça de Ofertas",
+    "arquivo": "terca-de-ofertas-91882d33.png",
+    "mini": "terca-de-ofertas-91882d33-mini.webp",
+    "largura": 1283,
+    "altura": 1226
+  },
+  {
+    "id": "saldao-de-ofertas",
+    "nome": "Saldão de Ofertas",
+    "arquivo": "saldao-de-ofertas-068df05f.png",
+    "mini": "saldao-de-ofertas-068df05f-mini.webp",
+    "largura": 1269,
+    "altura": 1240
+  },
+  {
+    "id": "ofertas-do-dia-carrinho",
+    "nome": "Ofertas do Dia (carrinho)",
+    "arquivo": "ofertas-do-dia-carrinho-40ce2adf.png",
+    "mini": "ofertas-do-dia-carrinho-40ce2adf-mini.webp",
+    "largura": 1265,
+    "altura": 1244
+  },
+  {
+    "id": "oferta-do-dia-azul",
+    "nome": "Oferta do Dia (azul)",
+    "arquivo": "oferta-do-dia-azul-53ffc094.png",
+    "mini": "oferta-do-dia-azul-53ffc094-mini.webp",
+    "largura": 1229,
+    "altura": 1280
+  },
+  {
+    "id": "show-de-ofertas",
+    "nome": "Show de Ofertas",
+    "arquivo": "show-de-ofertas-4af6fa6b.png",
+    "mini": "show-de-ofertas-4af6fa6b-mini.webp",
+    "largura": 1462,
+    "altura": 1076
+  },
+  {
+    "id": "super-ofertas",
+    "nome": "Super Ofertas",
+    "arquivo": "super-ofertas-4d2f5eae.png",
+    "mini": "super-ofertas-4d2f5eae-mini.webp",
+    "largura": 1270,
+    "altura": 1239
+  },
+  {
+    "id": "sabado-da-carne",
+    "nome": "Sábado da Carne",
+    "arquivo": "sabado-da-carne-f83898b0.png",
+    "mini": "sabado-da-carne-f83898b0-mini.webp",
+    "largura": 1268,
+    "altura": 1240
+  },
+  {
+    "id": "sexta-da-carne",
+    "nome": "Sexta da Carne",
+    "arquivo": "sexta-da-carne-7b618b5d.png",
+    "mini": "sexta-da-carne-7b618b5d-mini.webp",
+    "largura": 1266,
+    "altura": 1243
+  },
+  {
+    "id": "preco-baixo-e-aqui",
+    "nome": "Preço Baixo é Aqui!",
+    "arquivo": "preco-baixo-e-aqui-2fe7a303.png",
+    "mini": "preco-baixo-e-aqui-2fe7a303-mini.webp",
+    "largura": 1265,
+    "altura": 1244
+  },
+  {
+    "id": "domingo-da-carne",
+    "nome": "Domingo da Carne",
+    "arquivo": "domingo-da-carne-fd0ed994.png",
+    "mini": "domingo-da-carne-fd0ed994-mini.webp",
+    "largura": 1273,
+    "altura": 1236
+  },
+  {
+    "id": "quinta-da-carne",
+    "nome": "Quinta da Carne",
+    "arquivo": "quinta-da-carne-4b3447b8.png",
+    "mini": "quinta-da-carne-4b3447b8-mini.webp",
+    "largura": 1269,
+    "altura": 1240
+  },
+  {
+    "id": "ofertas-de-fim-de-ano",
+    "nome": "Ofertas de Fim de Ano",
+    "arquivo": "ofertas-de-fim-de-ano-16ae7f97.png",
+    "mini": "ofertas-de-fim-de-ano-16ae7f97-mini.webp",
+    "largura": 1637,
+    "altura": 961
+  },
+  {
     "id": "ofertas-do-dia-verde",
     "nome": "Ofertas do Dia (verde)",
     "arquivo": "ofertas-do-dia-verde-3feb6aae.png",
