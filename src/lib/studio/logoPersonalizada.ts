@@ -31,6 +31,10 @@ export interface TextoDaLogo {
   maxTamanho?: number;
   /** o texto dá lugar à logo quando o usuário põe uma (mesmo espaço) */
   somePorLogo?: boolean;
+  /** F-358 (dono, 23/11/2026): altura (px) entre os frisos da faixa onde o texto INTEIRO cabe (acentos e Ç incluídos); nada passa da listra */
+  alturaUtil?: number;
+  /** distância do meio de cada linha ao centro, em "em" (padrão 0,55); menor = linhas mais próximas, sem colar */
+  entreLinhas?: number;
 }
 export interface EspacoDaLogoDoUsuario {
   rotulo: string;
@@ -123,22 +127,36 @@ function escrever(ctx: CanvasRenderingContext2D, t: TextoDaLogo, valor: string) 
         ang = baixo ? ang - passo : ang + passo;
       });
     };
-    const uma = tamanhoQueCabe((sz) => larg(texto, sz) / r, graus, teto);
+    // altura de verdade das letras (com acento em cima e Ç embaixo), medida no meio da linha
+    const alto = (s: string, tam: number) => { ctx.font = fonteCanvas(fonte, tam, peso); const m = ctx.measureText(s); return [m.actualBoundingBoxAscent, m.actualBoundingBoxDescent]; };
+    const util = t.alturaUtil ?? Infinity, entre = t.entreLinhas ?? 0.55;
+    const uma = tamanhoQueCabe((sz) => Math.max(larg(texto, sz) / r / graus, (alto(texto, sz)[0] + alto(texto, sz)[1]) / util), 1, teto);
     const partes = duasLinhas(texto);
-    // duas linhas: a de cima fica mais longe do centro na alça e mais perto no sorriso
+    // duas linhas: a de cima fica mais longe do centro na alça e mais perto no sorriso; o bloco das duas cabe na altura útil
     const sobe = baixo ? -1 : 1;
-    const duas = partes ? tamanhoQueCabe((sz) => Math.max(larg(partes[0], sz) / (r + sobe * sz * 0.55), larg(partes[1], sz) / (r - sobe * sz * 0.55)), graus, teto * 0.62) : 0;
-    if (partes && duas > uma * 1.2) { naCurva(partes[0], r + sobe * duas * 0.55, duas); naCurva(partes[1], r - sobe * duas * 0.55, duas); }
-    else naCurva(texto, r, uma);
+    // meia distância entre as linhas: a pedida (entre) ou, se o Ç de cima e o acento de baixo se encostarem, o mínimo com folga de 8%
+    const meia = (sz: number) => (partes && t.alturaUtil ? Math.max(entre * sz, (alto(partes[0], sz)[1] + alto(partes[1], sz)[0]) / 2 + 0.08 * sz) : entre * sz);
+    const bloco = (sz: number) => (partes ? 2 * meia(sz) + alto(partes[0], sz)[0] + alto(partes[1], sz)[1] : 0);
+    const duas = partes ? tamanhoQueCabe((sz) => Math.max(larg(partes[0], sz) / (r + sobe * meia(sz)) / graus, larg(partes[1], sz) / (r - sobe * meia(sz)) / graus, bloco(sz) / util), 1, teto * 0.62) : 0;
+    if (partes && duas > uma * 1.2) {
+      // o bloco fica no meio da faixa: compensa a diferença entre o alto da 1ª linha e o baixo da 2ª
+      const ajuste = t.alturaUtil ? (alto(partes[0], duas)[0] - alto(partes[1], duas)[1]) / 2 : 0; // só nas faixas medidas (as antigas ficam como estavam)
+      naCurva(partes[0], r + sobe * (meia(duas) - ajuste), duas); naCurva(partes[1], r - sobe * (meia(duas) + ajuste), duas);
+    } else naCurva(texto, r, uma);
   } else { // uma linha bem grande; se ficar pequena demais, duas linhas
     const medir = (s: string) => (tam: number) => { ctx.font = fonteCanvas(fonte, tam, peso); return ctx.measureText(s).width + (t.contorno?.largura ?? 0) * 2; };
     const teto = Math.min(t.maxTamanho ?? Infinity, h * 0.72);
     const uma = tamanhoQueCabe(medir(texto), w * 0.94, teto);
     const partes = duasLinhas(texto);
-    const duas = partes ? Math.min(tamanhoQueCabe(medir(partes[0]), w * 0.94, h * 0.42), tamanhoQueCabe(medir(partes[1]), w * 0.94, h * 0.42)) : 0;
+    // F-358 (dono, 23/11/2026): duas linhas próximas (sem colar: o Ç de cima nunca encosta na linha de baixo) e o bloco inteiro dentro da placa
+    const altoR = (s: string, tam: number) => { ctx.font = fonteCanvas(fonte, tam, peso); const m = ctx.measureText(s); return [m.actualBoundingBoxAscent, m.actualBoundingBoxDescent]; };
+    const meiaR = (sz: number) => (partes ? Math.max((t.entreLinhas ?? 0.5) * sz, (altoR(partes[0], sz)[1] + altoR(partes[1], sz)[0]) / 2 + 0.08 * sz) : 0);
+    const blocoR = (sz: number) => (partes ? 2 * meiaR(sz) + altoR(partes[0], sz)[0] + altoR(partes[1], sz)[1] : 0);
+    const duas = partes ? tamanhoQueCabe((sz) => Math.max(medir(partes[0])(sz) / (w * 0.94), medir(partes[1])(sz) / (w * 0.94), blocoR(sz) / ((t.alturaUtil ?? h) * 0.92)), 1, h * 0.6) : 0;
     if (partes && duas > uma * 1.15) {
       ctx.font = fonteCanvas(fonte, duas, peso);
-      tracar(partes[0], x + w / 2, y + h / 2 - duas * 0.55, duas); tracar(partes[1], x + w / 2, y + h / 2 + duas * 0.55, duas);
+      const c0 = y + h / 2 - meiaR(duas) + (altoR(partes[0], duas)[0] - altoR(partes[1], duas)[1]) / 2; // bloco no meio da placa
+      tracar(partes[0], x + w / 2, c0, duas); tracar(partes[1], x + w / 2, c0 + 2 * meiaR(duas), duas);
     } else { ctx.font = fonteCanvas(fonte, uma, peso); tracar(texto, x + w / 2, y + h / 2, uma); }
   }
   ctx.restore();

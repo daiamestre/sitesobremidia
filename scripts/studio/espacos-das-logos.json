@@ -29,15 +29,15 @@
     "logo": { "rotulo": "No círculo de cima", "circulo": [1067, 287, 199], "alvo": [985, 92, 255, 150] }
   },
   "mega-oferta-azul": {
-    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [277, 995, 736, 110], "arco": { "cx": 649, "cy": -1259, "r": 2316, "de": 100.3, "ate": 79.9, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150,60,0,0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108 }]
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 988, 680, 135], "arco": { "cx": 647, "cy": -1079, "r": 2134, "de": 98.68, "ate": 81.16, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108, "alturaUtil": 111, "entreLinhas": 0.42 }]
   },
   "mega-oferta-verde": {
-    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [277, 970, 733, 110], "arco": { "cx": 635, "cy": -1144, "r": 2176, "de": 100.5, "ate": 79.0, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150,60,0,0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108 }]
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 966, 680, 128], "arco": { "cx": 631, "cy": -939, "r": 1969, "de": 98.94, "ate": 79.94, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108, "alturaUtil": 104, "entreLinhas": 0.42 }]
   },
   "mega-oferta-vermelha": {
-    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [289, 938, 724, 110], "arco": { "cx": 644, "cy": -918, "r": 1918, "de": 101.7, "ate": 77.9, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150,60,0,0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 88 }]
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 936, 680, 123], "arco": { "cx": 652, "cy": -909, "r": 1906, "de": 99.88, "ate": 80.24, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 88, "alturaUtil": 99, "entreLinhas": 0.42 }]
   },
   "mega-oferta-roxa": {
-    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [295, 960, 716, 110], "arco": { "cx": 642, "cy": -981, "r": 2003, "de": 101.0, "ate": 78.3, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150,60,0,0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108 }]
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 961, 680, 119], "arco": { "cx": 644, "cy": -886, "r": 1906, "de": 99.63, "ate": 80, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108, "alturaUtil": 95, "entreLinhas": 0.42 }]
   }
 }
