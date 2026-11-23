@@ -4161,3 +4161,9 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Aparecem no palco de mercado e no "trocar fundo" de toda criação de vídeo.
 - Testado no navegador com produtos e preços reais (Arroz Camil, Heineken) e logos de Black Friday.
 - Meta de logos: `META_DE_LOGOS_POR_PASTA` passou de 8 para 15.
+- **Correção do texto das fitas (23/11/2026, pedido do dono: "corrija os nomes Black Friday das faixas, mas não mude nada nas faixas"):**
+  - No fundo "Black Friday (fita e selos %)", 9 plaquinhas tinham "BLACK FRIDAY" quebrado ("PRIDAY", letras brancas pela metade).
+  - `scripts/studio/corrigir-texto-das-fitas.mjs`, com as plaquinhas indicadas em `fitas-black-friday.json`, faz o seguinte:
+    - as letras são o que a plaquinha amarela cerca; elas saem e o amarelo em volta preenche;
+    - "BLACK / FRIDAY" é escrito de novo em Montserrat 900, na cor e na inclinação da fita.
+  - Fitas, listras e bordas ficam iguais: 0 pontos mudados fora das fitas. O original do dono fica em `../fundos-do-dono-originais`.

@@ -3,6 +3,7 @@
 // Ele não manda o fundo deitado (16:9): o deitado é a MESMA arte inteira no centro, com as laterais preenchidas pela própria
 // arte desfocada e escurecida (nada da arte é cortado). Se o dono mandar a versão deitada, ela substitui esta.
 // A logo é sempre uma camada (o fundo não tem logo gravada), então "-st" (sem logo) é o mesmo arquivo.
+// black-friday-fita-selos: o texto BLACK FRIDAY quebrado das fitas foi refeito antes (scripts/studio/corrigir-texto-das-fitas.mjs).
 // Uso: node scripts/studio/fundo-do-dono-palco.mjs <imagem em pé> <id> [imagem deitada]
 import fs from 'node:fs';
 import sharp from 'sharp';
