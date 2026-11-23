@@ -29,16 +29,16 @@
     "logo": { "rotulo": "No círculo de cima", "circulo": [1067, 287, 199], "alvo": [985, 92, 255, 150] }
   },
   "mega-oferta-azul": {
-    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 988, 680, 135], "arco": { "cx": 647, "cy": -1079, "r": 2134, "de": 98.68, "ate": 81.16, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108, "alturaUtil": 111, "entreLinhas": 0.42 }]
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 988, 680, 135], "arco": { "cx": 647, "cy": -1079, "r": 2134, "de": 98.68, "ate": 81.16, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108, "alturaUtil": 111, "entreLinhas": 0.42, "baixar": 2 }]
   },
   "mega-oferta-verde": {
-    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 966, 680, 128], "arco": { "cx": 631, "cy": -939, "r": 1969, "de": 98.94, "ate": 79.94, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108, "alturaUtil": 104, "entreLinhas": 0.42 }]
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 966, 680, 128], "arco": { "cx": 631, "cy": -939, "r": 1969, "de": 98.94, "ate": 79.94, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108, "alturaUtil": 104, "entreLinhas": 0.42, "baixar": 2 }]
   },
   "mega-oferta-vermelha": {
-    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 936, 680, 123], "arco": { "cx": 652, "cy": -909, "r": 1906, "de": 99.88, "ate": 80.24, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 88, "alturaUtil": 99, "entreLinhas": 0.42 }]
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 936, 680, 123], "arco": { "cx": 652, "cy": -909, "r": 1906, "de": 99.88, "ate": 80.24, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 88, "alturaUtil": 99, "entreLinhas": 0.42, "baixar": 2 }]
   },
   "mega-oferta-roxa": {
-    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 961, 680, 119], "arco": { "cx": 644, "cy": -886, "r": 1906, "de": 99.63, "ate": 80, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108, "alturaUtil": 95, "entreLinhas": 0.42 }]
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [310, 961, 680, 119], "arco": { "cx": 644, "cy": -886, "r": 1906, "de": 99.63, "ate": 80, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150, 60, 0, 0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108, "alturaUtil": 95, "entreLinhas": 0.42, "baixar": 2 }]
   },
   "liquidacao-de-ano-novo-verde": {
     "textos": [{"id": "placa", "rotulo": "Na placa branca", "caixa": [365, 978, 550, 180], "cor": "#0b7a22", "degrade": ["#1cb53f", "#06601a"], "sombra": {"cor": "rgba(0, 60, 10, 0.35)", "x": 0, "y": 4, "desfoque": 3}, "fonte": "montserrat", "peso": 900, "maxTamanho": 110}]

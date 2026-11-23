@@ -35,6 +35,8 @@ export interface TextoDaLogo {
   alturaUtil?: number;
   /** distância do meio de cada linha ao centro, em "em" (padrão 0,55); menor = linhas mais próximas, sem colar */
   entreLinhas?: number;
+  /** F-358 (dono, 23/11/2026: "texto centralizado na faixa, não em cima da luz branca"): desce (px) o centro do texto em relação ao meio da curva */
+  baixar?: number;
 }
 export interface EspacoDaLogoDoUsuario {
   rotulo: string;
@@ -138,11 +140,18 @@ function escrever(ctx: CanvasRenderingContext2D, t: TextoDaLogo, valor: string) 
     const meia = (sz: number) => (partes && t.alturaUtil ? Math.max(entre * sz, (alto(partes[0], sz)[1] + alto(partes[1], sz)[0]) / 2 + 0.08 * sz) : entre * sz);
     const bloco = (sz: number) => (partes ? 2 * meia(sz) + alto(partes[0], sz)[0] + alto(partes[1], sz)[1] : 0);
     const duas = partes ? tamanhoQueCabe((sz) => Math.max(larg(partes[0], sz) / (r + sobe * meia(sz)) / graus, larg(partes[1], sz) / (r - sobe * meia(sz)) / graus, bloco(sz) / util), 1, teto * 0.62) : 0;
+    const desce = t.baixar ?? 0; // "para baixo" na faixa = −sobe no raio
+    // o centro é o do CORPO das letras (sem acento em cima nem cedilha embaixo): é o que o olho vê como "no meio"
+    const corpo = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
     if (partes && duas > uma * 1.2) {
       // o bloco fica no meio da faixa: compensa a diferença entre o alto da 1ª linha e o baixo da 2ª
-      const ajuste = t.alturaUtil ? (alto(partes[0], duas)[0] - alto(partes[1], duas)[1]) / 2 : 0; // só nas faixas medidas (as antigas ficam como estavam)
-      naCurva(partes[0], r + sobe * (meia(duas) - ajuste), duas); naCurva(partes[1], r - sobe * (meia(duas) + ajuste), duas);
-    } else naCurva(texto, r, uma);
+      const ajuste = t.alturaUtil ? (alto(corpo(partes[0]), duas)[0] - alto(corpo(partes[1]), duas)[1]) / 2 : 0; // só nas faixas medidas (as antigas ficam como estavam)
+      naCurva(partes[0], r + sobe * (meia(duas) - ajuste - desce), duas); naCurva(partes[1], r - sobe * (meia(duas) + ajuste + desce), duas);
+    } else {
+      // uma linha: o MEIO DAS LETRAS (não o da caixa da fonte) fica no meio da faixa
+      const ajuste1 = t.alturaUtil ? (alto(corpo(texto), uma)[0] - alto(corpo(texto), uma)[1]) / 2 : 0;
+      naCurva(texto, r - sobe * (ajuste1 + desce), uma);
+    }
   } else { // uma linha bem grande; se ficar pequena demais, duas linhas
     const medir = (s: string) => (tam: number) => { ctx.font = fonteCanvas(fonte, tam, peso); return ctx.measureText(s).width + (t.contorno?.largura ?? 0) * 2; };
     const teto = Math.min(t.maxTamanho ?? Infinity, h * 0.72);
