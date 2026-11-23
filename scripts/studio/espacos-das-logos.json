@@ -58,5 +58,9 @@
   },
   "ofertas-de-verao": {
     "textos": [{ "id": "faixa", "rotulo": "Na faixa branca", "caixa": [440, 905, 470, 100], "giro": -7, "cor": "#111111", "degrade": ["#2a2a2a", "#000000"], "fonte": "montserrat", "peso": 900, "maxTamanho": 72 }]
+  },
+  "ofertas-fim-de-ano-baloes": {
+    "textos": [],
+    "logo": { "rotulo": "No círculo de cima", "circulo": [1118, 161, 118], "alvo": [1041, 66, 154, 118] }
   }
 }

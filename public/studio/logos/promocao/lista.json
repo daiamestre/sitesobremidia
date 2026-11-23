@@ -1,5 +1,23 @@
 [
   {
+    "id": "ofertas-fim-de-ano-baloes",
+    "nome": "Ofertas Fim de Ano (balões)",
+    "arquivo": "ofertas-fim-de-ano-baloes-a1f4a4c5.png",
+    "mini": "ofertas-fim-de-ano-baloes-a1f4a4c5-mini.webp",
+    "largura": 1273,
+    "altura": 1236,
+    "limpa": true,
+    "vaga": "ofertas-fim-de-ano-baloes-a1f4a4c5-vaga.png"
+  },
+  {
+    "id": "dia-de-economizar-muito",
+    "nome": "Dia de Economizar Muito",
+    "arquivo": "dia-de-economizar-muito-12dfe269.png",
+    "mini": "dia-de-economizar-muito-12dfe269-mini.webp",
+    "largura": 1296,
+    "altura": 1213
+  },
+  {
     "id": "saldao-de-verao",
     "nome": "Saldão de Verão",
     "arquivo": "saldao-de-verao-40885154.png",

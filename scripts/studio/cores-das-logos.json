@@ -102,5 +102,9 @@
   ],
   "inauguracao-nova-loja": [
     "azul"
+  ],
+  "dia-de-economizar-muito": [
+    "vermelho",
+    "amarelo"
   ]
 }

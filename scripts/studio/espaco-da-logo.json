@@ -39,5 +39,10 @@
   ] },
   "ofertas-de-verao": { "_leia": "SUA LOGO AQUI sai da faixa branca (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
     { "modo": "liso", "limites": [436, 898, 910, 1012], "letra": { "preto": 150 }, "crescer": 4, "proteger": [[[430, 890], [660, 890], [430, 935]], [[740, 1000], [915, 968], [915, 1020], [740, 1020]]] }
+  ] },
+  "ofertas-fim-de-ano-baloes": { "_leia": "ALPHA BACKGROUND sai do aro preto e o xadrez vira o lugar OPCIONAL da logo do usuário (dono, 23/11/2026); os balões ficam", "zonas": [
+    { "modo": "aro", "limites": [950, 0, 1273, 200], "centro": [1118, 161], "raios": [118, 148], "angulos": [-152, -2], "letra": { "lum": 120, "neutro": 60 }, "fonte": { "lumMax": 70, "neutro": 22 }, "crescer": 3, "beirada": 4 },
+    { "modo": "xadrez", "limites": [990, 35, 1245, 300], "tons": [[212, 236], [239, 255]], "neutro": 10, "alfa": [8, 238], "porAlfa": 24, "circulo": [1118, 161, 118], "circuloTudo": true, "janela": 10, "minimo": 0.06, "pedaco": 150, "expandir": 0, "ilha": 400,
+      "proteger": [[[930, 150], [1000, 156], [1039, 169], [1063, 184], [1078, 199], [1085, 214], [1094, 229], [1096, 244], [1097, 260], [1097, 300], [930, 330]], [1040, 298, 1273, 340]] }
   ] }
 }

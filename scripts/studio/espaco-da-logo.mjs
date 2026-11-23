@@ -120,18 +120,25 @@ for (const z of [...cfg.zonas].sort((a, b) => ordem(a) - ordem(b))) {
     // o xadrez pintado: ponto cinza neutro que tem, em volta (janela de 21 px), os DOIS tons do xadrez. Assim os pedacinhos
     // presos entre o garfo, a carne e as letras também saem; a face branca de uma letra (só o tom claro) fica como está.
     const [[e0, e1], [c0, c1]] = z.tons;
+    // alfa: xadrez pintado meio transparente (vidro) — só conta quem está nessa faixa de transparência; o desenho opaco (balões) nunca
+    const alfaOk = (k) => (z.alfa ? data[k * 4 + 3] >= z.alfa[0] && data[k * 4 + 3] <= z.alfa[1] : data[k * 4 + 3] > 240);
     const somaD = new Float64Array((W + 1) * (H + 1)), somaC = new Float64Array((W + 1) * (H + 1));
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const k = y * W + x, v = data[k * 4], ok = neutro(k) <= (z.neutro ?? 5) && data[k * 4 + 3] > 240, i = (y + 1) * (W + 1) + x + 1;
+      const k = y * W + x, v = data[k * 4], ok = neutro(k) <= (z.neutro ?? 5) && alfaOk(k), i = (y + 1) * (W + 1) + x + 1;
       somaD[i] = (ok && v >= e0 && v <= e1 ? 1 : 0) + somaD[i - 1] + somaD[i - W - 1] - somaD[i - W - 2];
       somaC[i] = (ok && v >= c0 && v <= c1 ? 1 : 0) + somaC[i - 1] + somaC[i - W - 1] - somaC[i - W - 2];
     }
     const R = z.janela ?? 10, conta = (S, x, y) => { const xa = Math.max(0, x - R), ya = Math.max(0, y - R), xb = Math.min(W, x + R + 1), yb = Math.min(H, y + R + 1); return S[yb * (W + 1) + xb] - S[ya * (W + 1) + xb] - S[yb * (W + 1) + xa] + S[ya * (W + 1) + xa]; };
     const area = (2 * R + 1) ** 2;
     for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) {
-      const k = y * W + x; if (!dentro(x, y) || neutro(k) > (z.neutro ?? 5) + 3 || data[k * 4 + 3] <= 240 || data[k * 4] < e0 - 6) continue;
+      const k = y * W + x; if (!dentro(x, y) || neutro(k) > (z.neutro ?? 5) + 3 || !alfaOk(k) || data[k * 4] < e0 - 6) continue;
       if (conta(somaD, x, y) >= area * (z.minimo ?? 0.1) && conta(somaC, x, y) >= area * (z.minimo ?? 0.1)) M[k] = 1;
     }
+    // porAlfa: o vidro de xadrez é TODO meio transparente — todo ponto neutro nessa transparência é xadrez (as bordas mais escuras também)
+    if (z.porAlfa) for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; if (dentro(x, y) && alfaOk(k) && neutro(k) <= z.porAlfa) M[k] = 1; }
+    // circulo [cx, cy, r]: o vidro é um círculo exato — dentro dele tudo vira branco, menos o desenho opaco e claro (balões) que passa na frente;
+    // a borda escura de dentro do aro também entra, para o branco ficar redondo e liso (sem dentes)
+    if (z.circulo) { const [ccx, ccy, cr] = z.circulo; for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; if (dentro(x, y) && Math.hypot(x - ccx, y - ccy) <= cr && (z.circuloTudo || !(data[k * 4 + 3] >= 245 && lum(k) >= 95))) M[k] = 1; } } // circuloTudo: o que está na frente já é protegido pelo polígono
     // pedacinhos soltos (o miolo branco de uma letra encostada no xadrez) não são xadrez: ficam com as letras
     { const visto = new Uint8Array(N); for (let k0 = 0; k0 < N; k0++) { if (!M[k0] || visto[k0]) continue; const comp = [k0], pilha = [k0]; visto[k0] = 1;
       while (pilha.length) { const k = pilha.pop(); for (const d of [1, -1, W, -W]) { const q = k + d; if (M[q] && !visto[q]) { visto[q] = 1; comp.push(q); pilha.push(q); } } }
@@ -162,6 +169,7 @@ for (const z of [...cfg.zonas].sort((a, b) => ordem(a) - ordem(b))) {
           for (const [dx, dy] of VIZ4) { const nx = kx + dx, ny = ky + dy; if (!dentro(nx, ny)) { preso = false; continue; } const q = ny * W + nx; if (M[q] || visto[q]) continue; visto[q] = 1; comp.push(q); pilha.push(q); } }
         if (preso && comp.length <= (z.ilha ?? 600)) for (const k of comp) M[k] = 1;
       } }
+    if (z.circulo) { const [ccx, ccy, cr] = z.circulo; for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x, d = Math.hypot(x - ccx, y - ccy); if (M[k] || !dentro(x, y) || d <= cr || d > cr + 1.5 || (data[k * 4 + 3] >= 245 && lum(k) >= 95)) continue; const f2 = (cr + 1.5 - d) / 1.5; for (let c = 0; c < 3; c++) out[k * 4 + c] = Math.round(255 * f2 + data[k * 4 + c] * (1 - f2)); } } // borda suave
     for (let k = 0; k < N; k++) if (M[k]) { out[k * 4] = out[k * 4 + 1] = out[k * 4 + 2] = 255; out[k * 4 + 3] = 255; if (!z.vagaNeutro || neutro(k) <= z.vagaNeutro) vaga[k] = 1; xadrezAchado[k] = 1; } // vagaNeutro: o xadrez tingido pelo brilho do aro fica branco, mas a logo do usuário não passa por cima dele
     // as bordas meio-cinza entre o xadrez e o aro/desenhos também ficam sob a logo do usuário (não aparecem com ela)
     const v2 = vaga.slice(); for (let k = W; k < N - W; k++) if (!vaga[k] && (vaga[k - 1] || vaga[k + 1] || vaga[k - W] || vaga[k + W]) && dentro(k % W, (k / W) | 0) && lum(k) > 150 && neutro(k) <= 12) v2[k] = 1; vaga.set(v2);
