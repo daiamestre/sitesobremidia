@@ -4141,3 +4141,9 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - `progressoDaMeta()` em `pastasDeLogos.ts`, na ordem de `ORDEM_DA_META`. Para o dono/ADM, a página Logos mostra "Meta: 8 logos em cada pasta · N de 21 completas · Próxima pasta: X (tem, faltam)" e o contador "n/8" em cada pasta.
   - Cada pasta tem uma CAPA que gira as logos dela, 8 s cada, como as capas das mídias, com o nome do segmento embaixo.
   - Quando todas as pastas baterem a meta, a própria tela lembra o dono de mandar os FUNDOS.
+- **Logos genéricas nas pastas pela COR (23/11/2026, pedido do dono):**
+  - Uma logo que não fala de segmento (pasta "mercado": Oferta do Dia, Super Ofertas, Mega Oferta…) aparece também nas pastas dos segmentos que combinam com a cor dela.
+  - A cor é MEDIDA por `scripts/studio/cores-das-logos.mjs` (fica em `cores-das-logos.json`; nada na logo muda).
+  - A regra cor → pastas é `PASTAS_DA_COR` em `pastasDeLogos.ts`. Exemplos: vermelho → mercado, açougue, farmácia, padaria, adega, suplementos; verde → mercado, farmácia, hortifrúti, pet.
+  - Logo de segmento ou de data (açougue, Black Friday, Natal) fica só na pasta dela.
+  - Logo genérica nova: a receita mede a cor sozinha.

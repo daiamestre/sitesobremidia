@@ -35,8 +35,26 @@ export const PASTAS_DE_LOGOS: PastaDeLogo[] = [
 ];
 
 export const pastaDeLogo = (id: string | null | undefined) => PASTAS_DE_LOGOS.find((p) => p.id === id) ?? null;
+/**
+ * F-355 (pedido do dono, 23/11/2026): a logo GENÉRICA (não fala de segmento: Oferta do Dia, Super Ofertas, Mega Oferta…)
+ * aparece também nas pastas dos SEGMENTOS que combinam com a COR dela. As cores de cada logo são medidas por
+ * scripts/studio/cores-das-logos.mjs (nada na logo muda). Logo de segmento ou de data (açougue, Black Friday, Natal…) fica
+ * só na pasta dela.
+ */
+export const PASTAS_DA_COR: Record<string, string[]> = {
+  vermelho: ['mercado', 'acougue', 'farmacia', 'padaria', 'adega', 'suplementos'],
+  amarelo: ['mercado', 'padaria', 'hortifruti', 'suplementos'],
+  laranja: ['padaria', 'hortifruti', 'suplementos', 'pet'],
+  verde: ['mercado', 'farmacia', 'hortifruti', 'pet'],
+  azul: ['mercado', 'farmacia', 'eletronicos', 'pet'],
+  roxo: ['beleza', 'moda', 'pet', 'adega'],
+  rosa: ['beleza', 'moda'],
+  preto: ['suplementos', 'eletronicos', 'adega', 'moda'],
+};
+/** todas as pastas em que a logo aparece: a dela + as das cores (só nas genéricas, que têm cores) */
+export const pastasDaLogo = (l: LogoDaPasta): string[] => [...new Set([l.pasta, ...(l.cores ?? []).flatMap((c) => PASTAS_DA_COR[c] ?? [])].filter((p): p is string => !!p))];
 /** as logos de uma pasta (na ordem da galeria) */
-export const logosDaPastaDe = (logos: LogoDaPasta[], pasta: string) => logos.filter((l) => l.pasta === pasta);
+export const logosDaPastaDe = (logos: LogoDaPasta[], pasta: string) => logos.filter((l) => pastasDaLogo(l).includes(pasta));
 
 /**
  * META DO DONO (23/11/2026): pelo menos 8 logos em CADA pasta. A ordem abaixo é a ordem em que o dono completa as pastas

@@ -124,4 +124,14 @@ describe('F-355: logos de promoção do dono na galeria', () => {
     expect(m.proxima?.completa ?? false).toBe(false);
     expect(m.pastas.slice(0, m.pastas.indexOf(m.proxima!)).every((p) => p.completa)).toBe(true);
   });
+  it('logo genérica vai para as pastas dos segmentos da cor dela (pedido do dono); logo de segmento/data fica só na dela', async () => {
+    const { logosDaPastaDe, pastasDaLogo } = await import('@/lib/studio/pastasDeLogos');
+    const pega = (id: string) => LOGOS_OFICIAIS.find((l) => l.id === id)!;
+    for (const l of LOGOS_OFICIAIS.filter((x) => x.pasta === 'mercado')) expect(l.cores?.length, l.id).toBeGreaterThan(0);
+    for (const l of LOGOS_OFICIAIS.filter((x) => x.pasta !== 'mercado')) expect(l.cores, l.id).toBeUndefined();
+    expect(pastasDaLogo(pega('promocao-ofertas-do-dia-verde'))).toEqual(expect.arrayContaining(['mercado', 'farmacia', 'hortifruti']));
+    expect(pastasDaLogo(pega('promocao-ofertas-do-dia-carrinho'))).toEqual(expect.arrayContaining(['mercado', 'farmacia']));
+    expect(pastasDaLogo(pega('promocao-black-friday-dados'))).toEqual(['black-friday']);
+    expect(logosDaPastaDe(LOGOS_OFICIAIS, 'farmacia').map((l) => l.id)).toEqual(expect.arrayContaining(['oficial-ofertas-de-farmacia', 'promocao-ofertas-do-dia-verde', 'promocao-oferta-do-dia']));
+  });
 });

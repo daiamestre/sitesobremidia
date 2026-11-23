@@ -1,0 +1,70 @@
+{
+  "oferta-do-dia": [
+    "amarelo",
+    "vermelho"
+  ],
+  "semana-das-ofertas": [
+    "vermelho",
+    "amarelo"
+  ],
+  "ofertas-do-dia-verde": [
+    "verde",
+    "amarelo"
+  ],
+  "preco-baixo-e-aqui": [
+    "vermelho",
+    "amarelo"
+  ],
+  "super-ofertas": [
+    "vermelho",
+    "amarelo"
+  ],
+  "show-de-ofertas": [
+    "vermelho",
+    "amarelo"
+  ],
+  "oferta-do-dia-azul": [
+    "vermelho",
+    "amarelo",
+    "azul"
+  ],
+  "ofertas-do-dia-carrinho": [
+    "vermelho",
+    "amarelo"
+  ],
+  "saldao-de-ofertas": [
+    "vermelho"
+  ],
+  "terca-de-ofertas": [
+    "vermelho",
+    "amarelo"
+  ],
+  "sempre-o-menor-preco": [
+    "vermelho",
+    "amarelo"
+  ],
+  "fim-de-semana-de-ofertas": [
+    "vermelho",
+    "amarelo"
+  ],
+  "operacao-detona-preco": [
+    "vermelho",
+    "laranja",
+    "amarelo",
+    "preto"
+  ],
+  "venha-economizar-de-verdade": [
+    "verde",
+    "amarelo"
+  ],
+  "fecha-mes": [
+    "amarelo"
+  ],
+  "oficial-mega-oferta": [
+    "amarelo"
+  ],
+  "oficial-alerta-de-oferta": [
+    "vermelho",
+    "amarelo"
+  ]
+}
