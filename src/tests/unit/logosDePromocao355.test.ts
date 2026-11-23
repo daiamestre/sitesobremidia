@@ -115,12 +115,12 @@ describe('F-355: logos de promoção do dono na galeria', () => {
     expect(logosDaPastaDe(LOGOS_OFICIAIS, 'black-friday').map((l) => l.id)).toContain('promocao-black-friday-dados');
     expect(logosDaPastaDe(LOGOS_OFICIAIS, 'natal').length).toBeGreaterThan(10);
   });
-  it('meta do dono: 8 logos por pasta, com a próxima pasta indicada (todas as pastas entram na ordem da meta)', async () => {
+  it('meta do dono: 15 logos por pasta, com a próxima pasta indicada (todas as pastas entram na ordem da meta)', async () => {
     const { PASTAS_DE_LOGOS, ORDEM_DA_META, META_DE_LOGOS_POR_PASTA, progressoDaMeta } = await import('@/lib/studio/pastasDeLogos');
-    expect(META_DE_LOGOS_POR_PASTA).toBe(8);
+    expect(META_DE_LOGOS_POR_PASTA).toBe(15);
     expect([...ORDEM_DA_META].sort()).toEqual(PASTAS_DE_LOGOS.map((p) => p.id).sort());
     const m = progressoDaMeta(LOGOS_OFICIAIS);
-    for (const p of m.pastas) expect(p.tem + p.falta >= 8, p.pasta.id).toBe(true);
+    for (const p of m.pastas) expect(p.tem + p.falta >= 15, p.pasta.id).toBe(true);
     expect(m.proxima?.completa ?? false).toBe(false);
     expect(m.pastas.slice(0, m.pastas.indexOf(m.proxima!)).every((p) => p.completa)).toBe(true);
   });

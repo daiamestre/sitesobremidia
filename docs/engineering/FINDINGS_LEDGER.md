@@ -4147,3 +4147,17 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - A regra cor → pastas é `PASTAS_DA_COR` em `pastasDeLogos.ts`. Exemplos: vermelho → mercado, açougue, farmácia, padaria, adega, suplementos; verde → mercado, farmácia, hortifrúti, pet.
   - Logo de segmento ou de data (açougue, Black Friday, Natal) fica só na pasta dela.
   - Logo genérica nova: a receita mede a cor sozinha.
+
+### F-357 — Fundos de Black Friday enviados pelo dono no palco da criação de vídeo; meta de logos sobe para 15 (23/11/2026)
+- **Receita:** `scripts/studio/fundo-do-dono-palco.mjs <em pé> <id> [deitada]`.
+  - Grava `public/studio/palco/<id>-{v,h}(-st).webp`.
+  - A arte em pé entra inteira, sem recorte, só ajustada a 1080×1920.
+  - O dono mandou só a arte em pé, então o deitado é a mesma arte inteira no centro, com as laterais desfocadas e escurecidas. Se ele mandar a deitada, ela substitui essa.
+  - Os fundos não têm logo gravada (a logo é camada), então o `-st` é o mesmo arquivo.
+- Entraram em `FUNDOS_DO_PALCO` (`palco.ts`), na pasta mercado, como "Black Friday (fita amarela)" e "Black Friday (fita e selos %)":
+  - caixas do Alerta de Oferta e botão acima das fitas;
+  - botões OFERTAS, IMPERDÍVEL e BLACK FRIDAY;
+  - logo padrão Semana Black Friday (amarela).
+  - Aparecem no palco de mercado e no "trocar fundo" de toda criação de vídeo.
+- Testado no navegador com produtos e preços reais (Arroz Camil, Heineken) e logos de Black Friday.
+- Meta de logos: `META_DE_LOGOS_POR_PASTA` passou de 8 para 15.

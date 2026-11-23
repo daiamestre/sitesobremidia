@@ -6,6 +6,7 @@ import { TAMANHO_DOC, efeitoReal, forma, imagem, larguraDoTexto, selo, texto, ty
 import { idNovo, inicios, novoClipe, projetoVazio, type FaixaDeAudio, type ProjetoDeVideo, type TipoDeTransicao } from './video/linha';
 import type { TipoDeAnimacao } from './animacao';
 import { LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, logoOficialDoSegmento, type LogoDaPasta } from './logos';
+import { LOGOS_DE_PROMOCAO } from './logosDePromocao';
 import { SEGMENTOS_DE_OFERTA, idDaArte, pastaDoPalcoDe, type SegmentoNovo } from './segmentosDeOferta';
 import { COMPOSICOES_DOS_PALCOS, type SeloDoPalco } from './composicoesDosSegmentos';
 import { corDoDocumento, escurecer } from './corDaArte';
@@ -217,6 +218,19 @@ export const FUNDOS_DO_PALCO: FundoDoPalco[] = [
   // F-296 (pedido do dono): PALCOS COMPLEMENTARES — mais um palco por segmento, com cenário e pedestal próprios (os de cima ficam como eram)
   palcoDaComposicao('farmacia', 'Ofertas de Farmácia (vitrine)', LOGO_OFERTAS_DE_FARMACIA, '#0a9a50', ['FARMÁCIA', 'OFERTAS', 'SAÚDE'], AVISO_DE_REMEDIO),
   ...SEGMENTOS_DE_OFERTA.map((sg) => palcoDaComposicao(sg.id, `Ofertas – ${sg.nome} (modelo 2)`, logoOficialDoSegmento(sg.id), sg.corBotao, sg.botoes, sg.aviso)),
+  // F-357 (pedido do dono, 23/11/2026): FUNDOS DE BLACK FRIDAY enviados por ele (scripts/studio/fundo-do-dono-palco.mjs), na pasta
+  // do mercado. Sem logo gravada (a logo é camada); caixas do Alerta de Oferta (produto, nome, balão e botão nos mesmos lugares).
+  ...([['black-friday-fita', 'Black Friday (fita amarela)'], ['black-friday-fita-selos', 'Black Friday (fita e selos %)']] as const).map(([id, nome]): FundoDoPalco => ({
+    id, nome, segmento: 'mercado',
+    titulo: { '9:16': { x: 0.05, y: 0.04, w: 0.9, h: 0.3 }, '16:9': { x: 0.235, y: 0.012, w: 0.53, h: 0.49 } },
+    logoPadrao: LOGOS_DE_PROMOCAO.find((l) => l.id === 'promocao-semana-black-friday-amarela') ?? LOGO_ALERTA_DE_OFERTA,
+    produto: { '9:16': { x: 0.22, y: 0.445, w: 0.56, h: 0.3 }, '16:9': { x: 0.415, y: 0.475, w: 0.17, h: 0.27 } },
+    nome_: { '9:16': { x: 0.07, y: 0.345, w: 0.86, h: 0.09, alinhamento: 'center' }, '16:9': { x: 0.19, y: 0.5, w: 0.215, h: 0.2, alinhamento: 'right' } },
+    preco: { '9:16': { cx: 0.8, cy: 0.585, d: 0.24 }, '16:9': { cx: 0.66, cy: 0.6, d: 0.2 } },
+    botao: { '9:16': { x: 0.272, y: 0.792, w: 0.456, h: 0.068 }, '16:9': { x: 0.366, y: 0.8, w: 0.268, h: 0.09 } },
+    corBotao: '#111111', bordaBotao: '#ffd21f', corTema: '#f5b400',
+    botoes: ['OFERTAS', 'IMPERDÍVEL', 'BLACK FRIDAY'],
+  })),
 ];
 /** F-259: os fundos de uma pasta (mercado ou farmácia) */
 export const fundosDoSegmento = (s: SegmentoDoStudio) => FUNDOS_DO_PALCO.filter((f) => (f.segmento ?? 'mercado') === s);

@@ -67,7 +67,7 @@ describe('palco de ofertas da farmácia', () => {
     expect(PASTA_PALCO_FARMACIA).toBe('palco-de-ofertas-farmacia');
     // o palco de antes continua o primeiro; F-296: o modelo complementar entra na galeria depois dele
     expect(fundos.map((f) => f.id)).toEqual(['saude-em-oferta', 'saude-em-oferta-vitrine']);
-    expect(fundosDoSegmento('mercado').map((f) => f.id)).toEqual(['alerta-de-oferta']);
+    expect(fundosDoSegmento('mercado').map((f) => f.id)).toEqual(['alerta-de-oferta', 'black-friday-fita', 'black-friday-fita-selos']); // F-357: fundos de Black Friday do dono
     for (const k of ['9:16', '16:9'] as const) {
       expect(fs.existsSync(`public${srcDoFundo(fundos[0], k)}`)).toBe(true);
       expect(fs.existsSync(`public${srcSemLogo(fundos[0], k)}`)).toBe(true);

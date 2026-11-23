@@ -57,11 +57,11 @@ export const pastasDaLogo = (l: LogoDaPasta): string[] => [...new Set([l.pasta, 
 export const logosDaPastaDe = (logos: LogoDaPasta[], pasta: string) => logos.filter((l) => pastasDaLogo(l).includes(pasta));
 
 /**
- * META DO DONO (23/11/2026): pelo menos 8 logos em CADA pasta. A ordem abaixo é a ordem em que o dono completa as pastas
+ * META DO DONO (23/11/2026): pelo menos 15 logos (antes 8) em CADA pasta. A ordem abaixo é a ordem em que o dono completa as pastas
  * (as que ele citou primeiro: farmácia, padaria, Dia das Mães, Dia dos Pais, São João, Carnaval…); a "próxima" é a
  * primeira desta ordem que ainda não chegou a 8. Quando todas chegarem, o próximo passo é o dono mandar os FUNDOS.
  */
-export const META_DE_LOGOS_POR_PASTA = 8;
+export const META_DE_LOGOS_POR_PASTA = 15; // 23/11/2026: o dono subiu de 8 para 15 (depois talvez 20)
 export const ORDEM_DA_META = [
   'mercado', 'acougue', 'black-friday', 'natal', 'farmacia', 'padaria', 'dia-das-maes', 'dia-dos-pais', 'sao-joao', 'carnaval',
   'hortifruti', 'adega', 'pet', 'beleza', 'suplementos', 'eletronicos', 'moda', 'pascoa', 'dia-dos-namorados', 'dia-das-criancas', 'fim-de-ano',
