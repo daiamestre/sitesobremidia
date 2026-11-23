@@ -1,5 +1,53 @@
 [
   {
+    "id": "carnaval-de-ofertas-vermelho",
+    "nome": "Carnaval de Ofertas (vermelho)",
+    "arquivo": "carnaval-de-ofertas-vermelho-7fc9a6be.png",
+    "mini": "carnaval-de-ofertas-vermelho-7fc9a6be-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "carnaval-de-ofertas-verde",
+    "nome": "Carnaval de Ofertas (verde)",
+    "arquivo": "carnaval-de-ofertas-verde-8719794f.png",
+    "mini": "carnaval-de-ofertas-verde-8719794f-mini.webp",
+    "largura": 1697,
+    "altura": 927
+  },
+  {
+    "id": "ofertas-de-ano-novo-letreiro-vermelho",
+    "nome": "Ofertas de Ano Novo (letreiro vermelho)",
+    "arquivo": "ofertas-de-ano-novo-letreiro-vermelho-10d1cfeb.png",
+    "mini": "ofertas-de-ano-novo-letreiro-vermelho-10d1cfeb-mini.webp",
+    "largura": 1666,
+    "altura": 944
+  },
+  {
+    "id": "ofertas-de-ano-novo-letreiro-preto",
+    "nome": "Ofertas de Ano Novo (letreiro preto)",
+    "arquivo": "ofertas-de-ano-novo-letreiro-preto-60665bd5.png",
+    "mini": "ofertas-de-ano-novo-letreiro-preto-60665bd5-mini.webp",
+    "largura": 1685,
+    "altura": 933
+  },
+  {
+    "id": "carnaval-de-ofertas-azul",
+    "nome": "Carnaval de Ofertas (azul)",
+    "arquivo": "carnaval-de-ofertas-azul-17d37f23.png",
+    "mini": "carnaval-de-ofertas-azul-17d37f23-mini.webp",
+    "largura": 1707,
+    "altura": 921
+  },
+  {
+    "id": "carnaval-de-ofertas-pandeiro",
+    "nome": "Carnaval de Ofertas (pandeiro)",
+    "arquivo": "carnaval-de-ofertas-pandeiro-3adb68c7.png",
+    "mini": "carnaval-de-ofertas-pandeiro-3adb68c7-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
     "id": "ofertas-fim-de-ano-baloes",
     "nome": "Ofertas Fim de Ano (balões)",
     "arquivo": "ofertas-fim-de-ano-baloes-a1f4a4c5.png",

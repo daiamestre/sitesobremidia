@@ -88,14 +88,15 @@ Restrições gerais: senha nunca; segredos só em `~/.sobremidia-secrets/tokens.
 - **Pronto e não publicado (23/11):** as 4 Mega Oferta já passaram pela receita no PC (estão na lista local, com texto editável na faixa, conferidas no navegador com nomes de exemplo); falta só o commit + publicar junto com as outras.
 - **Pronto e não publicado:** zona `acento` da `feliz-ano-novo-fita` (versão limpa gerada e conferida: só o til saiu).
 
-## 6. Fila — 37 logos PRONTAS no projeto (commit), esperando publicar
+## 6. Fila — 43 logos PRONTAS no projeto (commit), esperando publicar
 
-Situação em 23/11/2026: as 37 recebidas já passaram pela receita (estão em `public/studio/logos/promocao/` e na lista local, commitadas), com pasta, cores e as faixas editáveis prontas. **Falta só publicar** (`node scripts/ops/publicar-main.mjs --forcar`) quando o dono pedir ("publique"). O dono disse que vai continuar mandando: cada logo nova entra na fila (`_fila-para-publicar.txt` + `fila/<id>.png`) e passa pela receita do mesmo jeito.
+Situação em 23/11/2026: as 43 recebidas já passaram pela receita (estão em `public/studio/logos/promocao/` e na lista local, commitadas), com pasta, cores e as faixas editáveis prontas. **Falta só publicar** (`node scripts/ops/publicar-main.mjs --forcar`) quando o dono pedir ("publique"). O dono disse que vai continuar mandando: cada logo nova entra na fila (`_fila-para-publicar.txt` + `fila/<id>.png`) e passa pela receita do mesmo jeito.
 
 - Editáveis da leva: Mega Oferta azul/verde/vermelha/roxa ("YOUR TEXT HERE" tirado), Liquidação de Ano Novo verde e preta (placa), Ano Novo (estrela) (fita branca), Feliz Ano Novo (fita vermelha, e o til do "Año" tirado).
 - Novas (23/11): Ofertas Ano Novo (balões), Réveillon de Ofertas (garrafas), Ofertas de Ano Novo (verde) → fim-de-ano; **Réveillon de Ofertas (relógio)**: o xadrez pintado do relógio saiu (modo `xadrez` com `forcar` no círculo e `vagaNeutro` 40) e virou o lugar OPCIONAL da logo do usuário (`alvo` = maior retângulo que cabe inteiro no círculo branco).
 - Novas (23/11, 2ª leva): **pasta nova ☀️ Verão** (Saldão de Verão; Ofertas de Verão com o "SUA LOGO AQUI" tirado da faixa branca, modo `liso` com `letra.preto`, e texto editável reto INCLINADO, campo `giro` -7°); Ofertas de Ano Novo (Feliz 2027) → fim-de-ano.
 - Novas (23/11, 3ª leva): **Ofertas Fim de Ano (balões)** — "ALPHA BACKGROUND" saiu do aro preto (modo `aro` com `beirada`) e o vidro de xadrez MEIO TRANSPARENTE virou branco (modo `xadrez` com `alfa`, `porAlfa` e `circulo` exato + `circuloTudo`; o balão da frente protegido pela borda medida) → lugar OPCIONAL da logo do usuário; Dia de Economizar Muito → genérica.
+- Novas (23/11, 4ª leva): 4 Carnaval de Ofertas (pandeiro, azul, verde, vermelho) → carnaval; 2 Ofertas de Ano Novo (letreiro preto e vermelho) → fim-de-ano. Todas iguais às originais (sem faixa em branco nem "your…").
 - Pastas: Boas Festas → natal; Fecha Mês de Dezembro, 2027 (dourado), Esquenta Ano Novo → fim-de-ano; Folia de Ofertas e Folia da Economia → carnaval; Feirão do Paizão e Ofertas Dia dos Pais → dia-dos-pais; Preço Baixo Pet → pet; genéricas (Inauguração Nova Loja, Melhor Preço da Cidade, Show de Ofertas luzes, Ofertas da Semana verde, 4 Mega Oferta) → mercado + pastas da cor.
 - Lista completa: `../logos-de-promocao-originais/_fila-para-publicar.txt`.
 
