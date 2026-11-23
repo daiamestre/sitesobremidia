@@ -21,8 +21,8 @@
 |---|---|
 | **A logo entra IGUAL à que ele mandou, byte a byte.** Nada de IA de recorte, tirar fundo, mexer em cor, cortar sobras ou "melhorar". Ele reclamou 4 vezes, muito irritado. | 20/11 |
 | **Exceção:** dizeres de modelo saem: "YOUR LOGO HERE", "SUA LOGO", "ALPHA BACKGROUND", "YOUR TEXT HERE", xadrez pintado. SÓ os dizeres; aro, disco, pano, fita ficam. | 22/11 |
-| **Toda faixa, placa ou espaço vazio vira TEXTO EDITÁVEL**, que começa com o **nome da empresa**, preso na logo (mover/aumentar/girar leva junto), seguindo o formato (reto ou em arco) e o estilo da faixa. Vale para TODAS as logos, inclusive as já publicadas. | 22/11 |
-| **Os nomes/textos escritos nas faixas são apagados** para o usuário poder escrever o que quiser (ex.: "YOUR TEXT HERE" das Mega Oferta). Ver a dúvida aberta na seção 8 sobre faixas que fazem parte do título. | 23/11 |
+| **Toda faixa, placa ou espaço vazio vira TEXTO EDITÁVEL**, que começa com o **nome da empresa**, preso na logo (mover/aumentar/girar leva junto), seguindo o formato (reto ou em arco) e o estilo da faixa. Vale para TODAS as logos, inclusive as já publicadas. **23/11:** na leva da fila o dono escolheu só as placas em branco das Liquidação verde/preta; as fitas vazias da Ano Novo (estrela) e da Feliz Ano Novo ficam como estão. Na dúvida, pergunte qual faixa vira editável. | 22/11 |
+| **Só os dizeres de MODELO saem das faixas** ("YOUR TEXT HERE", "YOUR LOGO", "SUA LOGO"…): TODA logo que vier com "your logo"/"your text" é editada. **Faixa que completa a frase da logo NUNCA muda** ("DE OFERTAS", "DA SEMANA", "IMBATÍVEL", "DE DEZEMBRO", "SALDÃO DE", "DIA DOS", "Tudo para seu Pet", "DA CIDADE"…): faz parte do nome da promoção. Resposta do dono em 23/11. | 23/11 |
 | Onde houver "your logo", o usuário pode pôr a logo dele, **OPCIONAL**: sem ela o espaço NÃO existe (nada de buraco, círculo vazio ou xadrez); a logo funciona completa sozinha. | 22/11 |
 | **NUNCA recortar o desenho.** Nenhum ponto da logo pode ficar transparente (teste "furos"). A 1ª versão da Black Friday ficou "toda recortada" e o dono reprovou. | 22/11 |
 | **REGRA DE TRABALHO:** comparar SEMPRE a original com a corrigida, lado a lado, de perto (cada zona + mapa do que mudou), e repetir até não sobrar NENHUMA falha, antes de publicar e de responder. Mostrar o antes e depois ao dono. | 22/11 |
@@ -92,30 +92,32 @@ Imagens em `../logos-de-promocao-originais/fila/<id>.png`. Caminho original de c
 | # | id | Nome | Pasta | O que fazer antes de publicar |
 |---|---|---|---|---|
 | 1 | ano-novo-preco-novo-vermelho | Ano Novo Preço Novo (vermelho) | fim-de-ano | — |
-| 2 | fecha-mes-de-dezembro | Fecha Mês de Dezembro | fim-de-ano (dono confirmou) | ver seção 8 (faixa "DE DEZEMBRO") |
-| 3 | saldao-de-ano-novo | Saldão de Ano Novo | fim-de-ano | ver seção 8 (faixa "SALDÃO DE") |
+| 2 | fecha-mes-de-dezembro | Fecha Mês de Dezembro | fim-de-ano (dono confirmou) | — (faixa "DE DEZEMBRO" faz parte da frase: não muda) |
+| 3 | saldao-de-ano-novo | Saldão de Ano Novo | fim-de-ano | — (faixa "SALDÃO DE" faz parte da frase: não muda) |
 | 4 | feirao-do-paizao | Feirão do Paizão | dia-dos-pais | — |
 | 5 | liquidacao-de-ano-novo-verde | Liquidação de Ano Novo (verde) | fim-de-ano | placa branca vazia → texto editável |
 | 6 | ano-novo-preco-novo-dourado | Ano Novo Preço Novo (dourado) | fim-de-ano | — |
 | 7 | liquidacao-de-ano-novo-preta | Liquidação de Ano Novo (preta) | fim-de-ano | placa branca vazia → texto editável |
-| 8 | feliz-ano-novo-fita | Feliz Ano Novo (fita vermelha) | fim-de-ano | til do "Año" já tirado (zona `acento`, pronta); fita vermelha vazia → texto editável |
-| 9 | ano-novo-estrela | Ano Novo (estrela) | fim-de-ano | fita branca vazia → texto editável |
+| 8 | feliz-ano-novo-fita | Feliz Ano Novo (fita vermelha) | fim-de-ano | til do "Año" já tirado (zona `acento`, pronta); fita fica como está (dono, 23/11: nesta leva, só Liquidação verde/preta e Mega Oferta) |
+| 9 | ano-novo-estrela | Ano Novo (estrela) | fim-de-ano | fita fica como está (dono, 23/11) |
 | 10 | inauguracao-nova-loja | Inauguração Nova Loja | genérica (mercado + cor) | — |
 | 11 | boas-festas | Boas Festas | **natal** (dono, 23/11) | — |
 | 12 | dezembro-arrasador | Dezembro Arrasador | fim-de-ano | — |
-| 13 | ano-novo-imbativel | Ano Novo Imbatível | fim-de-ano | ver seção 8 (faixa "IMBATÍVEL") |
-| 14 | ano-novo-de-ofertas | Ano Novo de Ofertas | fim-de-ano | ver seção 8 (faixa "DE OFERTAS") |
-| 15 | folia-de-ofertas | Folia de Ofertas | carnaval | pandeiro branco: perguntar se é lugar da logo do usuário |
-| 16 | ofertas-dia-dos-pais | Ofertas Dia dos Pais | dia-dos-pais | ver seção 8 (faixa "DIA DOS") |
+| 13 | ano-novo-imbativel | Ano Novo Imbatível | fim-de-ano | — (faixa "IMBATÍVEL" faz parte da frase: não muda) |
+| 14 | ano-novo-de-ofertas | Ano Novo de Ofertas | fim-de-ano | — (faixa "DE OFERTAS" faz parte da frase: não muda) |
+| 15 | folia-de-ofertas | Folia de Ofertas | carnaval | — (pandeiro fica como está) |
+| 16 | ofertas-dia-dos-pais | Ofertas Dia dos Pais | dia-dos-pais | — (faixa "DIA DOS" faz parte da frase: não muda) |
 | 17 | mega-oferta-azul | Mega Oferta (azul) | genérica | "YOUR TEXT HERE" sai → base laranja vira texto editável |
-| 18 | preco-baixo-pet | Preço Baixo – Tudo para seu Pet | pet | ver seção 8 (faixa "Tudo para seu Pet") |
-| 19 | melhor-preco-da-cidade | Melhor Preço da Cidade | genérica | ver seção 8 (faixa "DA CIDADE") |
+| 18 | preco-baixo-pet | Preço Baixo – Tudo para seu Pet | pet | — (faixa "Tudo para seu Pet" faz parte da frase: não muda) |
+| 19 | melhor-preco-da-cidade | Melhor Preço da Cidade | genérica | — (faixa "DA CIDADE" faz parte da frase: não muda) |
 | 20 | mega-oferta-verde | Mega Oferta (verde) | genérica | "YOUR TEXT HERE" sai → texto editável |
 | 21 | mega-oferta-vermelha | Mega Oferta (vermelha) | genérica | "YOUR TEXT HERE" sai → texto editável |
 | 22 | mega-oferta-roxa | Mega Oferta (roxa) | genérica | "YOUR TEXT HERE" sai → texto editável |
 | 23 | feliz-ano-novo-dourado | Feliz Ano Novo (dourado) | fim-de-ano | — |
 | 24 | show-de-ofertas-luzes | Show de Ofertas (luzes) | genérica | diferente da "Show de Ofertas" já publicada |
-| 25 | ofertas-da-semana-verde | Ofertas da Semana (verde) | genérica | ver seção 8 (faixa "DA SEMANA") |
+| 25 | ofertas-da-semana-verde | Ofertas da Semana (verde) | genérica | — (faixa "DA SEMANA" faz parte da frase: não muda) |
+
+**Editáveis nesta leva (resposta do dono, 23/11):** Liquidação de Ano Novo verde e preta (placa branca → texto) e as 4 Mega Oferta ("YOUR TEXT HERE" sai → texto). Nenhuma outra.
 
 Contagem com a fila: Fim de Ano 13 (faltam 2), Natal 23 ✅, Açougue ✅, Dia dos Pais 2, Carnaval 1, **Dia das Mães 0 = próxima pasta da meta**. Pet, Beleza e Moda sobem com as genéricas (a conta exata sai ao medir as cores na publicação).
 
@@ -130,7 +132,7 @@ Contagem com a fila: Fim de Ano 13 (faltam 2), Natal 23 ✅, Açougue ✅, Dia d
 
 ## 8. Dúvidas abertas com o dono
 
-1. **Faixas com parte do título escrita** (23/11, depois do pedido "os nomes que tiver nas faixas tem que ser apagados"): "DE DEZEMBRO", "SALDÃO DE", "IMBATÍVEL", "DE OFERTAS", "DIA DOS", "Tudo para seu Pet", "DA CIDADE", "DA SEMANA". Entendimento atual: "YOUR TEXT HERE" e nomes de loja SAEM; palavras do título ficam no desenho. Se o dono confirmar que essas também saem, o texto editável começa com as MESMAS palavras (a logo continua igual até o usuário trocar). **Confirmar antes de publicar.**
-2. Pandeiro branco da Folia de Ofertas e botão da Saldão de Natal: lugar da logo do usuário ou enfeite?
+1. ✅ RESOLVIDA (23/11): faixas que completam a frase NÃO mudam; só "your logo/your text" e faixas em branco das Liquidação verde/preta viram editáveis nesta leva.
+2. Botão da Saldão de Natal (já no ar): lugar da logo do usuário ou enfeite? (o pandeiro da Folia fica como está)
 3. Círculo branco quando o usuário não põe logo: deixar ou sumir?
 4. Versão deitada (16:9) dos dois fundos de Black Friday.
