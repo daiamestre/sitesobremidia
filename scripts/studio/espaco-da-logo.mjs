@@ -162,7 +162,7 @@ for (const z of [...cfg.zonas].sort((a, b) => ordem(a) - ordem(b))) {
           for (const [dx, dy] of VIZ4) { const nx = kx + dx, ny = ky + dy; if (!dentro(nx, ny)) { preso = false; continue; } const q = ny * W + nx; if (M[q] || visto[q]) continue; visto[q] = 1; comp.push(q); pilha.push(q); } }
         if (preso && comp.length <= (z.ilha ?? 600)) for (const k of comp) M[k] = 1;
       } }
-    for (let k = 0; k < N; k++) if (M[k]) { out[k * 4] = out[k * 4 + 1] = out[k * 4 + 2] = 255; out[k * 4 + 3] = 255; vaga[k] = 1; xadrezAchado[k] = 1; }
+    for (let k = 0; k < N; k++) if (M[k]) { out[k * 4] = out[k * 4 + 1] = out[k * 4 + 2] = 255; out[k * 4 + 3] = 255; if (!z.vagaNeutro || neutro(k) <= z.vagaNeutro) vaga[k] = 1; xadrezAchado[k] = 1; } // vagaNeutro: o xadrez tingido pelo brilho do aro fica branco, mas a logo do usuário não passa por cima dele
     // as bordas meio-cinza entre o xadrez e o aro/desenhos também ficam sob a logo do usuário (não aparecem com ela)
     const v2 = vaga.slice(); for (let k = W; k < N - W; k++) if (!vaga[k] && (vaga[k - 1] || vaga[k + 1] || vaga[k - W] || vaga[k + W]) && dentro(k % W, (k / W) | 0) && lum(k) > 150 && neutro(k) <= 12) v2[k] = 1; vaga.set(v2);
   }

@@ -51,5 +51,9 @@
   },
   "feliz-ano-novo-fita": {
     "textos": [{"id": "fita", "rotulo": "Na fita vermelha", "caixa": [270, 800, 660, 330], "arco": {"cx": -1784, "cy": 7807, "r": 7222, "de": -73.35, "ate": -68.05}, "cor": "#ffe7a0", "degrade": ["#fff6d2", "#f0bd45"], "contorno": {"cor": "#6e0808", "largura": 3}, "sombra": {"cor": "rgba(60, 0, 0, 0.5)", "x": 0, "y": 5, "desfoque": 4}, "fonte": "montserrat", "peso": 900, "maxTamanho": 110, "alturaUtil": 132, "entreLinhas": 0.42}]
+  },
+  "reveillon-de-ofertas-relogio": {
+    "textos": [],
+    "logo": { "rotulo": "No relógio", "circulo": [450, 360, 168], "alvo": [326, 240, 140, 112] }
   }
 }

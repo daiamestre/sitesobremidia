@@ -32,5 +32,9 @@
   ] },
   "mega-oferta-roxa": { "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
     { "modo": "liso", "limites": [260, 910, 1040, 1110], "letra": { "branco": 120, "neutro": 60, "espessura": 7 }, "crescer": 8, "friso": 75, "aoLongo": { "busca": [880, 1180], "abaixo": 40, "margem": 3, "acima": 6, "uMin": 0.05, "topoPelasLetras": true, "uMax": 0.985, "frisos": { "x": [280, 354, 428, 502, 576, 650, 724, 798, 872, 946, 1020], "cima": [924, 938, 947.5, 953, 956.5, 957, 956.5, 952.5, 945.5, 936.5, 922.5], "baixo": [1038.5, 1057, 1069, 1077, 1081.5, 1082.5, 1081, 1075.5, 1067.5, 1055, 1036.5] } } }
+  ] },
+  "reveillon-de-ofertas-relogio": { "_leia": "xadrez pintado do círculo do relógio sai (dono, 23/11/2026): vira o lugar OPCIONAL da logo do usuário", "zonas": [
+    { "modo": "xadrez", "limites": [285, 190, 680, 480], "tons": [[198, 222], [244, 255]], "neutro": 14, "janela": 12, "minimo": 0.08, "pedaco": 150, "expandir": 6, "expNeutro": 52, "claroMin": 120, "vagaNeutro": 40, "forcar": [[290, 195, 600, 470]],
+      "proteger": [[[290, 490], [430, 385], [560, 302], [690, 255], [690, 490]]] }
   ] }
 }

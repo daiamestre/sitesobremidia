@@ -90,10 +90,10 @@ describe('F-355: logos de promoção do dono na galeria', () => {
   }, 120_000);
   it('faixas e espaços: o usuário escreve o nome da empresa e põe a logo dele (opcional), dentro da logo', async () => {
     const comEspaco = LOGOS_DE_PROMOCAO.filter((l) => l.espacos);
-    expect(comEspaco.map((l) => l.id).sort()).toEqual(['promocao-ano-novo-estrela', 'promocao-black-friday-dados', 'promocao-esquenta-black-friday-laranja', 'promocao-feliz-ano-novo-fita', 'promocao-liquidacao-de-ano-novo-preta', 'promocao-liquidacao-de-ano-novo-verde', 'promocao-mega-oferta-azul', 'promocao-mega-oferta-roxa', 'promocao-mega-oferta-verde', 'promocao-mega-oferta-vermelha', 'promocao-natal-de-ofertas-gorro', 'promocao-ofertas-de-natal-faixa', 'promocao-quarta-das-carnes', 'promocao-sexta-da-carne-brasa']);
+    expect(comEspaco.map((l) => l.id).sort()).toEqual(['promocao-ano-novo-estrela', 'promocao-black-friday-dados', 'promocao-esquenta-black-friday-laranja', 'promocao-feliz-ano-novo-fita', 'promocao-liquidacao-de-ano-novo-preta', 'promocao-liquidacao-de-ano-novo-verde', 'promocao-mega-oferta-azul', 'promocao-mega-oferta-roxa', 'promocao-mega-oferta-verde', 'promocao-mega-oferta-vermelha', 'promocao-natal-de-ofertas-gorro', 'promocao-ofertas-de-natal-faixa', 'promocao-quarta-das-carnes', 'promocao-reveillon-de-ofertas-relogio', 'promocao-sexta-da-carne-brasa']);
     for (const l of comEspaco) {
       const e = l.espacos!;
-      expect(e.textos.length, l.id).toBeGreaterThan(0);
+      expect(e.textos.length + (e.logo ? 1 : 0), l.id).toBeGreaterThan(0); // faixa editável e/ou lugar da logo do usuário
       for (const t of e.textos) { const [x, y, w, h] = t.caixa; expect(x >= 0 && y >= 0 && x + w <= l.largura && y + h <= l.altura, `${l.id} ${t.id}`).toBe(true); }
       if (e.logo?.circulo) { const [cx, cy, r] = e.logo.circulo; expect(cx - r >= 0 && cy - r >= 0 && cx + r <= l.largura && cy + r <= l.altura, l.id).toBe(true); }
       if (e.vaga) expect(fs.existsSync(`public${e.vaga}`), l.id).toBe(true);

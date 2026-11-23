@@ -1,5 +1,39 @@
 [
   {
+    "id": "ofertas-ano-novo-baloes",
+    "nome": "Ofertas Ano Novo (balões)",
+    "arquivo": "ofertas-ano-novo-baloes-f6850800.png",
+    "mini": "ofertas-ano-novo-baloes-f6850800-mini.webp",
+    "largura": 1199,
+    "altura": 1312
+  },
+  {
+    "id": "reveillon-de-ofertas-relogio",
+    "nome": "Réveillon de Ofertas (relógio)",
+    "arquivo": "reveillon-de-ofertas-relogio-f409d291.png",
+    "mini": "reveillon-de-ofertas-relogio-f409d291-mini.webp",
+    "largura": 1284,
+    "altura": 1225,
+    "limpa": true,
+    "vaga": "reveillon-de-ofertas-relogio-f409d291-vaga.png"
+  },
+  {
+    "id": "reveillon-de-ofertas-garrafas",
+    "nome": "Réveillon de Ofertas (garrafas)",
+    "arquivo": "reveillon-de-ofertas-garrafas-a08dfce3.png",
+    "mini": "reveillon-de-ofertas-garrafas-a08dfce3-mini.webp",
+    "largura": 1281,
+    "altura": 1227
+  },
+  {
+    "id": "ofertas-de-ano-novo-verde",
+    "nome": "Ofertas de Ano Novo (verde)",
+    "arquivo": "ofertas-de-ano-novo-verde-88723908.png",
+    "mini": "ofertas-de-ano-novo-verde-88723908-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
     "id": "ano-novo-preco-novo-vermelho",
     "nome": "Ano Novo Preço Novo (vermelho)",
     "arquivo": "ano-novo-preco-novo-vermelho-c0bca16f.png",
