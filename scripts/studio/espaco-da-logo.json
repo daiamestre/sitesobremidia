@@ -20,5 +20,17 @@
   "feliz-ano-novo-fita": { "_leia": "pedido do dono 23/11/2026: 'Año' vira 'Ano' (só o til sai; o n fica pela curva medida)", "zonas": [
     { "modo": "acento", "limites": [669, 352, 800, 427], "base": 423, "outraLetra": [800, 404], "crescer": 3,
       "curva": [[669, 420], [672, 417], [676, 413], [680, 409.5], [684, 406.5], [688, 404], [692, 402], [696, 400.3], [700, 399], [705, 398], [710, 397.3], [716, 397], [722, 397], [728, 397.4], [733, 398.2], [738, 399.6], [743, 401.6], [748, 404.5], [753, 408.5], [757, 413.5], [760, 419], [762.5, 425], [764, 431], [765, 436]] }
+  ] },
+  "mega-oferta-azul": { "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
+    { "modo": "liso", "limites": [260, 930, 1040, 1140], "letra": { "branco": 120, "neutro": 60, "espessura": 7 }, "crescer": 8, "friso": 75, "aoLongo": { "busca": [880, 1180], "abaixo": 40, "margem": 3, "acima": 6, "uMin": 0.05, "topoPelasLetras": true, "uMax": 0.985, "frisos": { "x": [280, 354, 428, 502, 576, 650, 724, 798, 872, 946, 1020], "cima": [958.5, 968, 976, 981.5, 984.5, 985.5, 984.5, 980, 975, 966.5, 955], "baixo": [1087, 1102.5, 1113.5, 1120.5, 1124.5, 1125.5, 1124.5, 1120.5, 1113.5, 1102.5, 1086.5] } } }
+  ] },
+  "mega-oferta-verde": { "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
+    { "modo": "liso", "limites": [260, 920, 1030, 1130], "letra": { "branco": 120, "neutro": 60, "espessura": 7 }, "crescer": 8, "friso": 75, "aoLongo": { "busca": [880, 1180], "abaixo": 40, "margem": 3, "acima": 6, "uMin": 0.05, "topoPelasLetras": true, "uMax": 0.955, "frisos": { "x": [280, 354, 428, 502, 576, 650, 724, 798, 872, 946, 1020], "cima": [934.5, 946, 954, 959.5, 963, 964, 962, 958, 951.5, 941.5, 926.5], "baixo": [1060, 1076, 1086, 1093, 1097, 1097, 1095, 1090, 1081.5, 1069, 1049.5] } } }
+  ] },
+  "mega-oferta-vermelha": { "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
+    { "modo": "liso", "limites": [260, 890, 1040, 1080], "letra": { "branco": 120, "neutro": 60, "espessura": 7 }, "crescer": 8, "friso": 75, "aoLongo": { "busca": [880, 1180], "abaixo": 40, "margem": 3, "acima": 6, "uMin": 0.05, "topoPelasLetras": true, "uMax": 0.985, "frisos": { "x": [280, 354, 428, 502, 576, 650, 724, 798, 872, 946, 1020], "cima": [899, 910, 920, 927, 931, 932.5, 931.5, 929.5, 923, 913, 899.5], "baixo": [1018, 1037, 1049, 1057, 1061, 1061.5, 1059, 1054.5, 1047, 1035.5, 1017.5] } } }
+  ] },
+  "mega-oferta-roxa": { "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
+    { "modo": "liso", "limites": [260, 910, 1040, 1110], "letra": { "branco": 120, "neutro": 60, "espessura": 7 }, "crescer": 8, "friso": 75, "aoLongo": { "busca": [880, 1180], "abaixo": 40, "margem": 3, "acima": 6, "uMin": 0.05, "topoPelasLetras": true, "uMax": 0.985, "frisos": { "x": [280, 354, 428, 502, 576, 650, 724, 798, 872, 946, 1020], "cima": [924, 938, 947.5, 953, 956.5, 957, 956.5, 952.5, 945.5, 936.5, 922.5], "baixo": [1038.5, 1057, 1069, 1077, 1081.5, 1082.5, 1081, 1075.5, 1067.5, 1055, 1036.5] } } }
   ] }
 }

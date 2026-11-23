@@ -74,7 +74,7 @@ Restrições gerais: senha nunca; segredos só em `~/.sobremidia-secrets/tokens.
 - `aro`: letras sobre aro/alça; cada ponto recebe a cor do próprio aro (`centro`, `raios`, `angulos`, `letra`, `fonte`, `faixaInteira`, `beirada`, `crescer*`, `proteger`).
 - `xadrez`: xadrez pintado → branco + vira a VAGA da logo do usuário (`tons`, `neutro`, `janela`, `expandir`, `rosado`…).
 - `colunas`: letras sobre tábuas; os veios continuam (`face`, `caixaLetras`, `veioMax`, `alcance`).
-- `liso`: letras em pano liso → Laplace.
+- `liso`: letras em pano liso → Laplace. Letra branca: `letra.branco` + `neutro`; `letra.espessura` descarta brilho fino. **Faixa com brilho e frisos (Mega Oferta) → `aoLongo`** (REGRA do dono 23/11: a faixa fica EXATAMENTE igual à original, só sem os dizeres): a faixa é refeita AO LONGO da curva dela, entre o friso de cima e o de baixo (`frisos` medidos com `conferir-logo.mjs grade`, um ponto a cada 74 px); o topo da área limpa segue o topo das letras (`topoPelasLetras`, o brilho abaixo do friso de cima fica intacto) e embaixo vai até o friso (`uMax` 0,985; verde 0,955 porque o friso é mais grosso); correção de Poisson nas bordas.
 - `acento` (23/11): tira acento/enfeite que está em cima de uma letra, sobre fundo escovado (`curva` = contorno de cima da letra que fica, `base`, `outraLetra`). Usado no "Año" da Feliz Ano Novo (fita).
 
 **Fundo do dono no palco:** `node scripts/studio/fundo-do-dono-palco.mjs <em pé> <id> [deitada]` → entrada em `FUNDOS_DO_PALCO` com as caixas medidas, `segmento`, `botoes` e `logoPadrao` → teste `studioFarmacia259` (lista do mercado). Texto quebrado na arte: `scripts/studio/corrigir-texto-das-fitas.mjs` + `fitas-black-friday.json`.
@@ -84,6 +84,7 @@ Restrições gerais: senha nunca; segredos só em `~/.sobremidia-secrets/tokens.
 - **No ar:** 68 logos de promoção, das quais 6 com espaços editáveis (Quarta das Carnes, Sexta da Carne brasa, Ofertas de Natal faixa, Natal de Ofertas gorro, Esquenta Black Friday laranja, Black Friday dados). 4 de 21 pastas com 15 ou mais.
 - **Fundos no ar (F-357):** `black-friday-fita` e `black-friday-fita-selos` (texto BLACK FRIDAY das plaquinhas refeito, fitas intactas). O deitado é a arte no centro com laterais desfocadas, até o dono mandar a versão deitada.
 - **Revisão das 68 no ar (23/11):** conferidas uma a uma; só as 6 já editáveis têm faixa em branco ou dizer "your…". As outras faixas trazem palavras da frase (DE OFERTAS, VARIADOS, DESCONTOS IMPERDÍVEIS…) e ficam como estão.
+- **Pronto e não publicado (23/11):** as 4 Mega Oferta já passaram pela receita no PC (estão na lista local, com texto editável na faixa, conferidas no navegador com nomes de exemplo); falta só o commit + publicar junto com as outras.
 - **Pronto e não publicado:** zona `acento` da `feliz-ano-novo-fita` (versão limpa gerada e conferida: só o til saiu).
 
 ## 6. Fila (recebidas, aguardando "adicione as logos") — 25 logos
@@ -108,12 +109,12 @@ Imagens em `../logos-de-promocao-originais/fila/<id>.png`. Caminho original de c
 | 14 | ano-novo-de-ofertas | Ano Novo de Ofertas | fim-de-ano | — (faixa "DE OFERTAS" faz parte da frase: não muda) |
 | 15 | folia-de-ofertas | Folia de Ofertas | carnaval | — (pandeiro fica como está) |
 | 16 | ofertas-dia-dos-pais | Ofertas Dia dos Pais | dia-dos-pais | — (faixa "DIA DOS" faz parte da frase: não muda) |
-| 17 | mega-oferta-azul | Mega Oferta (azul) | genérica | "YOUR TEXT HERE" sai → base laranja vira texto editável |
+| 17 | mega-oferta-azul | Mega Oferta (azul) | genérica | **PRONTA no PC (23/11), falta só publicar:** "YOUR TEXT HERE" tirado (zona `liso`), faixa com texto editável em arco, já na lista local |
 | 18 | preco-baixo-pet | Preço Baixo – Tudo para seu Pet | pet | — (faixa "Tudo para seu Pet" faz parte da frase: não muda) |
 | 19 | melhor-preco-da-cidade | Melhor Preço da Cidade | genérica | — (faixa "DA CIDADE" faz parte da frase: não muda) |
-| 20 | mega-oferta-verde | Mega Oferta (verde) | genérica | "YOUR TEXT HERE" sai → texto editável |
-| 21 | mega-oferta-vermelha | Mega Oferta (vermelha) | genérica | "YOUR TEXT HERE" sai → texto editável |
-| 22 | mega-oferta-roxa | Mega Oferta (roxa) | genérica | "YOUR TEXT HERE" sai → texto editável |
+| 20 | mega-oferta-verde | Mega Oferta (verde) | genérica | **PRONTA no PC (23/11), falta só publicar:** "YOUR TEXT HERE" tirado (zona `liso`), faixa com texto editável em arco, já na lista local |
+| 21 | mega-oferta-vermelha | Mega Oferta (vermelha) | genérica | **PRONTA no PC (23/11), falta só publicar:** "YOUR TEXT HERE" tirado (zona `liso`), faixa com texto editável em arco, já na lista local |
+| 22 | mega-oferta-roxa | Mega Oferta (roxa) | genérica | **PRONTA no PC (23/11), falta só publicar:** "YOUR TEXT HERE" tirado (zona `liso`), faixa com texto editável em arco, já na lista local |
 | 23 | feliz-ano-novo-dourado | Feliz Ano Novo (dourado) | fim-de-ano | — |
 | 24 | show-de-ofertas-luzes | Show de Ofertas (luzes) | genérica | diferente da "Show de Ofertas" já publicada |
 | 25 | ofertas-da-semana-verde | Ofertas da Semana (verde) | genérica | — (faixa "DA SEMANA" faz parte da frase: não muda) |
@@ -126,6 +127,7 @@ Contagem com a fila: Fim de Ano 13 (faltam 2), Natal 23 ✅, Açougue ✅, Dia d
 
 - Tirar o círculo inteiro e "inventar" o fundo deixou a logo recortada → só os dizeres saem; trava de furos no teste.
 - Ao comparar de perto apareceram: pontinhos e ilhas no miolo, riscos verticais (busca de ilhas interrompida), expansão invadindo letras vizinhas (use `limites`, `expandir` menor e `proteger`), letras fantasma no aro (faixa uniforme por raio, média só do aro), cantinho rosado, veios cortados, restos rosados no pano. Cada um só apareceu na comparação ampliada → nunca pular a conferência.
+- Faixa brilhante (Mega Oferta, 23/11): Laplace deixa a faixa lisa e sem brilho (o dono recusou: "não aceito faixas com falhas"); área reta corta o brilho curvo (linha, degrau, emenda); área encostada no friso escurece; achar friso sozinho pega o disco colorido de cima. Solução: frisos medidos + topo pelas letras + até o friso de baixo. Conferir SEMPRE ampliado 2x as 4 cores.
 - Fundo escovado (listras horizontais): continuar cada listra da esquerda para a direita + correção de Poisson do brilho; Laplace puro ou cópia de outras linhas deixam borrão e emenda (lição do til, 23/11).
 - O contorno da letra embaixo do enfeite precisa ser uma curva suave medida dos lados visíveis; corte reto achata a letra.
 - Botão padrão de palco com texto longo ("BLACK FRIDAY") falhou no teste de botão centralizado → o padrão é OFERTAS.

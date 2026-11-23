@@ -1,6 +1,10 @@
 {
   "_leia": "F-355 (pedido do dono, 22/11/2026): a pasta de cada logo de promoção (ids das pastas em src/lib/studio/pastasDeLogos.ts). Logo nova: ponha o id dela na pasta certa e rode node scripts/studio/logos-de-promocao.mjs --lista.",
   "mercado": [
+    "mega-oferta-roxa",
+    "mega-oferta-vermelha",
+    "mega-oferta-verde",
+    "mega-oferta-azul",
     "oferta-do-dia",
     "semana-das-ofertas",
     "ofertas-do-dia-verde",

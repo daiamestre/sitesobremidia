@@ -27,5 +27,17 @@
     "textos": [{ "id": "placa", "rotulo": "Na placa preta", "caixa": [470, 835, 530, 175],
       "cor": "#ffffff", "degrade": ["#ffffff", "#ffd27a"], "contorno": { "cor": "#ff7a00", "largura": 3 }, "sombra": { "cor": "rgba(255,122,0,0.9)", "x": 0, "y": 0, "desfoque": 14 }, "fonte": "archivo-black", "peso": 400 }],
     "logo": { "rotulo": "No círculo de cima", "circulo": [1067, 287, 199], "alvo": [985, 92, 255, 150] }
+  },
+  "mega-oferta-azul": {
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [277, 995, 736, 110], "arco": { "cx": 649, "cy": -1259, "r": 2316, "de": 100.3, "ate": 79.9, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150,60,0,0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108 }]
+  },
+  "mega-oferta-verde": {
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [277, 970, 733, 110], "arco": { "cx": 635, "cy": -1144, "r": 2176, "de": 100.5, "ate": 79.0, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150,60,0,0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108 }]
+  },
+  "mega-oferta-vermelha": {
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [289, 938, 724, 110], "arco": { "cx": 644, "cy": -918, "r": 1918, "de": 101.7, "ate": 77.9, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150,60,0,0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 88 }]
+  },
+  "mega-oferta-roxa": {
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa laranja", "caixa": [295, 960, 716, 110], "arco": { "cx": 642, "cy": -981, "r": 2003, "de": 101.0, "ate": 78.3, "baixo": true }, "cor": "#ffffff", "degrade": ["#ffffff", "#e6e6ec"], "sombra": { "cor": "rgba(150,60,0,0.6)", "x": 2, "y": 5, "desfoque": 2 }, "fonte": "montserrat", "peso": 900, "espaco": 0.01, "maxTamanho": 108 }]
   }
 }

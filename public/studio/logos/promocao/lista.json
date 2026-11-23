@@ -1,5 +1,41 @@
 [
   {
+    "id": "mega-oferta-azul",
+    "nome": "Mega Oferta (azul)",
+    "arquivo": "mega-oferta-azul-18e44190.png",
+    "mini": "mega-oferta-azul-18e44190-mini.webp",
+    "largura": 1271,
+    "altura": 1237,
+    "limpa": true
+  },
+  {
+    "id": "mega-oferta-verde",
+    "nome": "Mega Oferta (verde)",
+    "arquivo": "mega-oferta-verde-02cdfc26.png",
+    "mini": "mega-oferta-verde-02cdfc26-mini.webp",
+    "largura": 1230,
+    "altura": 1278,
+    "limpa": true
+  },
+  {
+    "id": "mega-oferta-vermelha",
+    "nome": "Mega Oferta (vermelha)",
+    "arquivo": "mega-oferta-vermelha-0fd2baf7.png",
+    "mini": "mega-oferta-vermelha-0fd2baf7-mini.webp",
+    "largura": 1284,
+    "altura": 1225,
+    "limpa": true
+  },
+  {
+    "id": "mega-oferta-roxa",
+    "nome": "Mega Oferta (roxa)",
+    "arquivo": "mega-oferta-roxa-09956610.png",
+    "mini": "mega-oferta-roxa-09956610-mini.webp",
+    "largura": 1273,
+    "altura": 1236,
+    "limpa": true
+  },
+  {
     "id": "black-friday-dados",
     "nome": "Black Friday (dados)",
     "arquivo": "black-friday-dados-172307b9.png",

@@ -5,7 +5,7 @@
 //   aro     → letras em cima de um aro/alça: cada ponto da letra recebe a cor do PRÓPRIO aro ao lado, na mesma curva
 //   xadrez  → o xadrez pintado vira branco (o "em branco" do dono); vira também a VAGA da logo do usuário
 //   colunas → letras em cima de tábuas verticais: os veios de cima e de baixo continuam (espelhados) pelo lugar das letras
-//   liso    → letras em pano/superfície lisa: o pano em volta preenche suave (equação de Laplace)
+//   liso    → letras em pano/superfície lisa: o pano em volta preenche suave (equação de Laplace); letra vermelha ou branca (letra.branco)
 //   acento  → acento/enfeite em cima da letra (o til do "Año", pedido do dono): o fundo escovado continua por baixo dele
 // Só mexe dentro dos 'limites' de cada zona (scripts/studio/espaco-da-logo.json); o teste logosDePromocao355 confere
 // pixel a pixel que fora deles a logo é idêntica ao arquivo do dono.
@@ -238,14 +238,84 @@ for (const z of [...cfg.zonas].sort((a, b) => ordem(a) - ordem(b))) {
   }
 
   if (z.modo === 'liso') {
-    for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; const r = data[k * 4], g = data[k * 4 + 1], b = data[k * 4 + 2]; if (dentro(x, y) && r - g > z.letra.vermelho && r - b > z.letra.vermelho) M[k] = 1; }
-    crescer(M, z.crescer ?? 3, dentro);
+    for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; const r = data[k * 4], g = data[k * 4 + 1], b = data[k * 4 + 2]; const branca = z.letra.branco && Math.max(r, g, b) - Math.min(r, g, b) < z.letra.neutro && Math.min(r, g, b) > z.letra.branco; // letras brancas (YOUR TEXT HERE)
+      if (dentro(x, y) && (branca || (z.letra.vermelho != null && r - g > z.letra.vermelho && r - b > z.letra.vermelho))) M[k] = 1; }
+    if (z.letra.espessura) { // brilho fino da faixa (1-3 px) não é letra: letra tem traço grosso na vertical
+      const corrida = new Uint16Array(N);
+      for (let x = bx0; x < bx1; x++) { let y = by0; while (y < by1) { if (!M[y * W + x]) { y++; continue; } let y2 = y; while (y2 < by1 && M[y2 * W + x]) y2++; for (let k = y; k < y2; k++) corrida[k * W + x] = y2 - y; y = y2; } }
+      for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; if (M[k] && corrida[k] < z.letra.espessura) M[k] = 0; }
+    }
+    const friso = (k) => z.friso && data[k * 4 + 1] < z.friso && data[k * 4] - data[k * 4 + 1] > 60; // friso vermelho-escuro da faixa: não entra
+    const colada = z.friso ? Math.min(6, z.crescer ?? 3) : (z.crescer ?? 3); // a sombra colada na letra sai sempre; depois disso o friso fica
+    crescer(M, colada, dentro);
+    crescer(M, (z.crescer ?? 3) - colada, (x, y) => dentro(x, y) && !friso(y * W + x));
+    let T = null, B = null, naFaixa = null;
+    if (z.aoLongo) {
+      // frisos de cima e de baixo da faixa → curvas T(x) e B(x); u = altura relativa entre eles (0 = friso de cima, 1 = de baixo)
+      const [sy0, sy1] = z.aoLongo.busca, cima = [], baixo = [];
+      // só frisos FINOS (≤ 7 px; o disco colorido acima da faixa não conta), o mais perto acima e abaixo do meio das letras
+      for (let x = bx0; x < bx1; x += 3) {
+        let s = 0, n = 0; for (let y = by0; y < by1; y++) if (M[y * W + x]) { s += y; n++; } if (n < 6) continue; const meio = s / n;
+        const g = []; for (let y = sy0; y < sy1; y++) { const k = y * W + x; if (data[k * 4 + 3] > 200 && friso(k)) { if (!g.length || y - g[g.length - 1][1] > 3) g.push([y, y]); else g[g.length - 1][1] = y; } }
+        const finos = g.filter(([p, q]) => q - p <= 7).map(([p, q]) => (p + q) / 2);
+        const em = finos.filter((y) => y < meio).pop(), eb = finos.find((y) => y > meio);
+        if (em != null && eb != null) { cima.push([x, em]); baixo.push([x, eb]); }
+      }
+      const parabola = (pts) => { // mínimos quadrados y = a + b·x + c·x² (x centrado), 2 passadas tirando pontos fora da curva
+        const ajusta = (ps) => { const m = ps.reduce((s, p) => s + p[0], 0) / ps.length; const S = Array(5).fill(0), T = [0, 0, 0];
+          for (const [x0, y] of ps) { const x = x0 - m; for (let i = 0; i < 5; i++) S[i] += x ** i; for (let i = 0; i < 3; i++) T[i] += y * x ** i; }
+          const A = [[S[0], S[1], S[2]], [S[1], S[2], S[3]], [S[2], S[3], S[4]]], det = (M3) => M3[0][0] * (M3[1][1] * M3[2][2] - M3[1][2] * M3[2][1]) - M3[0][1] * (M3[1][0] * M3[2][2] - M3[1][2] * M3[2][0]) + M3[0][2] * (M3[1][0] * M3[2][1] - M3[1][1] * M3[2][0]);
+          const D = det(A), co = [0, 1, 2].map((j) => det(A.map((l, i) => l.map((v2, jj) => (jj === j ? T[i] : v2)))) / D); return (x) => co[0] + co[1] * (x - m) + co[2] * (x - m) ** 2; };
+        let f = ajusta(pts); f = ajusta(pts.filter(([x, y]) => Math.abs(f(x) - y) < 4)); return f; };
+      const fr = z.aoLongo.frisos; // medidos com conferir-logo.mjs grade (mais seguro que achar sozinho)
+      const xs = [280, 354, 428, 502, 576, 650, 724, 798, 872, 946, 1020];
+      T = parabola(fr ? fr.cima.map((y, i) => [fr.x?.[i] ?? xs[i], y]) : cima); B = parabola(fr ? fr.baixo.map((y, i) => [fr.x?.[i] ?? xs[i], y]) : baixo); naFaixa = (x, u) => T(x) + u * (B(x) - T(x));
+      // a área limpa ACOMPANHA A CURVA da faixa (de u0 a u1, ponta a ponta das letras): uma área reta cortava o brilho curvo e deixava
+      // linha, degrau e emenda (conferência de 23/11/2026). Miolos (O, R) e vãos entre letras entram junto.
+      let u0 = 1, u1 = 0, xa = W, xb = 0;
+      for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; if (!M[k]) continue; const u = (y - T(x)) / (B(x) - T(x)); if (u < (z.aoLongo.uMin ?? 0.03) || u > (z.aoLongo.uMax ?? 0.97)) { M[k] = 0; continue; } u0 = Math.min(u0, u); u1 = Math.max(u1, u); xa = Math.min(xa, x); xb = Math.max(xb, x); }
+      const alt = B((xa + xb) / 2) - T((xa + xb) / 2), mg = z.aoLongo.margem ?? 4;
+      u0 = Math.max(z.aoLongo.uMin ?? 0.03, u0 - (mg + (z.aoLongo.acima ?? 0)) / alt); // uMin perto de 0: vai até o friso de cima
+      u1 = Math.min(z.aoLongo.uMax ?? 0.97, u1 + ((z.aoLongo.abaixo ?? 0) + mg) / alt); // uMax perto de 1: a área vai até o friso de baixo (a sombra das letras não fica na borda)
+      if (process.env.DEPURAR_U) console.log(`u ${u0.toFixed(3)}..${u1.toFixed(3)} x ${xa}..${xb} altura ${alt.toFixed(1)}`);
+      // topo: segue o TOPO DAS LETRAS (o brilho logo abaixo do friso de cima fica como o dono desenhou); embaixo: até o friso (u1)
+      const topo = new Map(); for (let x = xa; x <= xb; x++) { for (let y = by0; y < by1; y++) if (M[y * W + x]) { topo.set(x, y); break; } }
+      const janela = z.aoLongo.janela ?? 40, acima = mg + (z.aoLongo.acima ?? 0);
+      for (let x = xa - mg; x <= xb + mg; x++) {
+        let yt = Infinity; for (let d = -janela; d <= janela; d++) { const v2 = topo.get(Math.min(xb, Math.max(xa, x + d))); if (v2 != null) yt = Math.min(yt, v2); }
+        const y0 = z.aoLongo.topoPelasLetras ? Math.max(Math.floor(naFaixa(x, u0)), yt - acima) : Math.floor(naFaixa(x, u0));
+        for (let y = y0; y <= Math.ceil(naFaixa(x, u1)); y++) { const k = y * W + x; if (dentro(x, y) && !friso(k)) M[k] = 1; }
+      }
+    }
     const ks = []; for (let k = 0; k < N; k++) if (M[k]) ks.push(k);
     const v = new Float32Array(N * 4); for (let i = 0; i < N * 4; i++) v[i] = data[i];
     for (const k of ks) { // começa com a média das bordas da linha (acelera a convergência)
       const x = k % W, y = (k / W) | 0; let a = x, b = x; while (M[y * W + a]) a--; while (M[y * W + b]) b++;
       const t = (x - a) / (b - a); for (let c = 0; c < 4; c++) v[k * 4 + c] = data[(y * W + a) * 4 + c] * (1 - t) + data[(y * W + b) * 4 + c] * t;
     }
+    if (z.aoLongo) {
+      // F-355 (dono, 23/11/2026: "a faixa tem de ficar EXATAMENTE igual à original, mesma coloração e estilo, só em branco"):
+      // a faixa é desenhada AO LONGO da curva dela (brilhos e frisos correm de ponta a ponta). Cada ponto da letra recebe a cor da
+      // própria faixa na MESMA altura relativa entre o friso de cima e o de baixo (u), vinda dos dois lados da letra; depois uma
+      // correção de Poisson só acerta o brilho nas bordas. Assim o brilho, o degradê e os frisos continuam como o dono desenhou.
+      const cor = (x, y) => amostra(data, x, y);
+      const base = new Float32Array(N * 4);
+      for (const k of ks) {
+        const x = k % W, y = (k / W) | 0, u = (y - T(x)) / (B(x) - T(x));
+        const limpo = (xx, d) => { for (let i = 0; i < 5; i++) if (M[Math.round(naFaixa(xx + d * i, u)) * W + xx + d * i]) return false; return true; };
+        let xl = x - 1; while (xl > x - 900 && !limpo(xl, -1)) xl--;
+        let xr = x + 1; while (xr < x + 900 && !limpo(xr, 1)) xr++;
+        const media = (x0, d) => { const s = [0, 0, 0, 0]; for (const i of [2, 3, 4]) { const p = cor(x0 + d * i, naFaixa(x0 + d * i, u)); for (let c = 0; c < 4; c++) s[c] += p[c] / 3; } return s; };
+        const a = media(xl, -1), b = media(xr, 1), t = (x - xl) / (xr - xl);
+        for (let c = 0; c < 4; c++) base[k * 4 + c] = a[c] * (1 - t) + b[c] * t;
+      }
+      const L = new Float32Array(N * 4); // correção harmônica: só o que falta para casar com as bordas
+      for (let it = 0; it < 1500; it++) for (const k of ks) for (let c = 0; c < 4; c++) {
+        let s = 0; for (const q of [k - 1, k + 1, k - W, k + W]) s += M[q] ? L[q * 4 + c] : data[q * 4 + c] - base[k * 4 + c];
+        L[k * 4 + c] += 1.9 * (s / 4 - L[k * 4 + c]);
+      }
+      for (const k of ks) for (let c = 0; c < 4; c++) v[k * 4 + c] = base[k * 4 + c] + L[k * 4 + c];
+    } else
     for (let it = 0; it < 3000; it++) for (const k of ks) for (let c = 0; c < 4; c++) { const m = (v[(k - 1) * 4 + c] + v[(k + 1) * 4 + c] + v[(k - W) * 4 + c] + v[(k + W) * 4 + c]) / 4; v[k * 4 + c] += 1.9 * (m - v[k * 4 + c]); }
     for (const k of ks) for (let c = 0; c < 4; c++) out[k * 4 + c] = Math.max(0, Math.min(255, Math.round(v[k * 4 + c])));
   }

@@ -66,5 +66,24 @@
   "oficial-alerta-de-oferta": [
     "vermelho",
     "amarelo"
+  ],
+  "mega-oferta-roxa": [
+    "laranja",
+    "amarelo",
+    "roxo"
+  ],
+  "mega-oferta-vermelha": [
+    "laranja",
+    "vermelho"
+  ],
+  "mega-oferta-verde": [
+    "laranja",
+    "amarelo",
+    "verde"
+  ],
+  "mega-oferta-azul": [
+    "laranja",
+    "azul",
+    "amarelo"
   ]
 }
