@@ -4167,3 +4167,11 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
     - as letras são o que a plaquinha amarela cerca; elas saem e o amarelo em volta preenche;
     - "BLACK / FRIDAY" é escrito de novo em Montserrat 900, na cor e na inclinação da fita.
   - Fitas, listras e bordas ficam iguais: 0 pontos mudados fora das fitas. O original do dono fica em `../fundos-do-dono-originais`.
+
+### F-358 — Logos do dono: til do "Año" tirado, regra das faixas com texto e manual completo para retomar (23/11/2026)
+- **Pedido do dono:** corrigir o "Año" da Feliz Ano Novo (fita), mandar Boas Festas para Natal, manter Fecha Mês de Dezembro em Fim de Ano; toda logo com faixa tem a faixa editável e os nomes escritos nas faixas são apagados; registrar tudo no sistema para uma conversa nova continuar de onde parou.
+- **Feito:**
+  - Modo `acento` em `scripts/studio/espaco-da-logo.mjs` (zona `feliz-ano-novo-fita` em `espaco-da-logo.json`): o til sai e o fundo escovado continua listra por listra, com correção de Poisson do brilho; o contorno de cima do "n" é uma curva suave medida nos lados visíveis. 0 furos; nada muda fora da caixa. Versão limpa pronta, ainda não publicada (está na fila).
+  - `scripts/studio/conferir-logo.mjs` (zonas | grade | lado): a conferência lado a lado, antes só em arquivos temporários, agora fica no projeto.
+  - Manual `docs/studio/LOGOS_E_FUNDOS_DO_DONO.md`: fluxo do dono, regras, onde fica cada coisa, receitas, situação, **fila das 25 logos** (cópias em `../logos-de-promocao-originais/fila/`), lições e dúvidas abertas. Ligado em ESTADO_DO_SISTEMA (P-36), DECISOES_DO_DONO, MAPA_DO_PROJETO, CLAUDE.md e skill encartes-e-palcos.
+- **Lição:** em fundo escovado, Laplace puro ou cópia de outras linhas deixam borrão e emenda; continuar a listra na mesma linha resolve.

@@ -11,6 +11,7 @@ Padrão completo, com composição, regras e receitas: `docs/studio/PADRAO_DE_EN
 | Pedido | Faça |
 |---|---|
 | Fundo de encarte enviado pelo dono | Receita "Fundo novo do dono": `tirar-titulo-dos-fundos.mjs` → `BASES` + `ADAPTACOES` (`encartesOficiais.ts` e `adaptar-encartes.mjs`) → logo em `LOGOS_OFICIAIS` |
+| Logo de promoção enviada pelo dono | `docs/studio/LOGOS_E_FUNDOS_DO_DONO.md` (guardar na fila, contar a meta, publicar só no "adicione as logos", conferir com `conferir-logo.mjs`) |
 | Fundo de palco enviado pelo dono | `public/studio/palco/<id>-{h,v}.webp` + `-st` → entrada em `FUNDOS_DO_PALCO` com as caixas medidas e o `segmento` |
 | Encarte ou palco criado pelo sistema | Copie o modelo de `scripts/studio/gerar-farmacia.mjs` (HTML/SVG + Chromium), repita as caixas de um oficial que funciona e confira as imagens em tamanho grande |
 | Segmento novo (açougue, pet…) | `SegmentoDoStudio` + `PASTAS_DE_ENCARTE` + rotas em `PastaPage.tsx` + cartões em `CatalogoPage.tsx` + `CESTA_<SEG>` com nomes do catálogo |

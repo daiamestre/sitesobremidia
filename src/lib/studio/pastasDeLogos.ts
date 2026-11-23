@@ -59,7 +59,7 @@ export const logosDaPastaDe = (logos: LogoDaPasta[], pasta: string) => logos.fil
 /**
  * META DO DONO (23/11/2026): pelo menos 15 logos (antes 8) em CADA pasta. A ordem abaixo é a ordem em que o dono completa as pastas
  * (as que ele citou primeiro: farmácia, padaria, Dia das Mães, Dia dos Pais, São João, Carnaval…); a "próxima" é a
- * primeira desta ordem que ainda não chegou a 8. Quando todas chegarem, o próximo passo é o dono mandar os FUNDOS.
+ * primeira desta ordem que ainda não chegou à meta (META_DE_LOGOS_POR_PASTA). Quando todas chegarem, o próximo passo é o dono mandar os FUNDOS.
  */
 export const META_DE_LOGOS_POR_PASTA = 15; // 23/11/2026: o dono subiu de 8 para 15 (depois talvez 20)
 export const ORDEM_DA_META = [

@@ -6,6 +6,7 @@
 //   xadrez  → o xadrez pintado vira branco (o "em branco" do dono); vira também a VAGA da logo do usuário
 //   colunas → letras em cima de tábuas verticais: os veios de cima e de baixo continuam (espelhados) pelo lugar das letras
 //   liso    → letras em pano/superfície lisa: o pano em volta preenche suave (equação de Laplace)
+//   acento  → acento/enfeite em cima da letra (o til do "Año", pedido do dono): o fundo escovado continua por baixo dele
 // Só mexe dentro dos 'limites' de cada zona (scripts/studio/espaco-da-logo.json); o teste logosDePromocao355 confere
 // pixel a pixel que fora deles a logo é idêntica ao arquivo do dono.
 // Uso: node scripts/studio/espaco-da-logo.mjs <id>
@@ -247,6 +248,34 @@ for (const z of [...cfg.zonas].sort((a, b) => ordem(a) - ordem(b))) {
     }
     for (let it = 0; it < 3000; it++) for (const k of ks) for (let c = 0; c < 4; c++) { const m = (v[(k - 1) * 4 + c] + v[(k + 1) * 4 + c] + v[(k - W) * 4 + c] + v[(k + W) * 4 + c]) / 4; v[k * 4 + c] += 1.9 * (m - v[k * 4 + c]); }
     for (const k of ks) for (let c = 0; c < 4; c++) out[k * 4 + c] = Math.max(0, Math.min(255, Math.round(v[k * 4 + c])));
+  }
+
+  if (z.modo === 'acento') {
+    // F-355 (dono, 23/11/2026: "corrija o Año"): tira um acento/enfeite que está EM CIMA da letra, sobre um fundo escovado.
+    // 'curva' = contorno de cima da letra que fica (pontos [x,y]); dali para baixo nada muda. À direita da curva, até 'base'.
+    // O fundo volta continuando cada listra da esquerda para a direita (o escovado é horizontal) + correção de Poisson do brilho.
+    const fundo = (x, y) => { const i = (y * W + x) * 4, mx = Math.max(data[i], data[i + 1], data[i + 2]), mn = Math.min(data[i], data[i + 1], data[i + 2]); return (mx - mn) / (mx || 1) < 0.2 && mx > 140; };
+    const cv = z.curva, xFim = cv[cv.length - 1][0];
+    const Bc = (x) => { if (x < cv[0][0]) return 0; if (x > xFim + 2) return z.base; for (let k = 1; k < cv.length; k++) { const [x0, y0] = cv[k - 1], [x1, y1] = cv[k]; if (x <= x1) return Math.min(z.base, y0 + ((y1 - y0) * (x - x0)) / (x1 - x0)); } return z.base; };
+    const B = (x) => Math.floor(Bc(x));
+    for (let x = bx0; x < bx1; x++) { let y = by0 + 3; while (y < B(x) && fundo(x, y)) y++; if (y >= B(x)) continue; for (let yy = Math.max(by0, y - 3); yy < B(x); yy++) if (dentro(x, yy)) M[yy * W + x] = 1; }
+    crescer(M, z.crescer ?? 3, (x, y) => dentro(x, y) && y < B(x) && fundo(x, y));
+    const [ox, oy] = z.outraLetra ?? [W, H]; // a letra seguinte (à direita, de oy para baixo) também não é fundo
+    const fixo = (x, y) => !M[y * W + x] && !(x >= cv[0][0] - 1 && x <= xFim + 2 && y >= B(x)) && !(x >= ox && y >= oy);
+    const linhas = {};
+    const ponta = (x, y, d) => { const v = [0, 0, 0]; let n = 0; for (let k = 0; k < 3; k++) { const xx = x + d * k; if (fixo(xx, y)) { for (let c = 0; c < 3; c++) v[c] += data[(y * W + xx) * 4 + c]; n++; } } return n ? v.map((t) => t / n) : null; };
+    const linha = (y) => { if (linhas[y]) return linhas[y]; let xl = W, xr = -1; for (let x = bx0; x < bx1; x++) if (M[y * W + x]) { xl = Math.min(xl, x); xr = Math.max(xr, x); } const a = xr >= 0 ? ponta(xl - 1, y, -1) : null, b = xr >= 0 ? ponta(xr + 1, y, 1) : null; return (linhas[y] = { xl, xr, a: a || b, b: b || a }); };
+    const base = (x, y, c) => { const r = linha(y); if (r.xr < 0 || !r.a) return data[(y * W + x) * 4 + c]; const t = (x - r.xl + 1) / (r.xr - r.xl + 2); return r.a[c] * (1 - t) + r.b[c] * t; };
+    const ks = []; for (let k = 0; k < N; k++) if (M[k]) ks.push(k);
+    const L = new Float32Array(N * 3);
+    for (let it = 0; it < 6000; it++) for (const k of ks) {
+      const x = k % W, y = (k / W) | 0, s = [0, 0, 0]; let n = 0;
+      for (const [dx, dy] of VIZ4) { const xx = x + dx, yy = y + dy, q = yy * W + xx;
+        if (M[q]) { for (let c = 0; c < 3; c++) s[c] += L[q * 3 + c]; n++; } else if (fixo(xx, yy)) { for (let c = 0; c < 3; c++) s[c] += data[q * 4 + c] - base(x, y, c); n++; } }
+      if (n) for (let c = 0; c < 3; c++) L[k * 3 + c] = s[c] / n;
+    }
+    for (const k of ks) { const x = k % W, y = (k / W) | 0; for (let c = 0; c < 3; c++) out[k * 4 + c] = Math.max(0, Math.min(255, Math.round(base(x, y, c) + L[k * 3 + c]))); out[k * 4 + 3] = 255; }
+    for (let x = cv[0][0]; x <= xFim + 2; x++) { const b = Bc(x), yb = Math.floor(b), f = b - yb; if (f <= 0 || !M[(yb - 1) * W + x] || !dentro(x, yb)) continue; const i = (yb * W + x) * 4, j = i - W * 4; for (let c = 0; c < 3; c++) out[i + c] = Math.round(out[j + c] * f + data[i + c] * (1 - f)); }
   }
 
   for (let k = 0; k < N; k++) if (M[k]) { mexidos++; if (process.env.DEPURAR) depura[k] = z.modo === 'xadrez' ? 2 : 1; }
