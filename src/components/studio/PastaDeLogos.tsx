@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Check, FolderOpen, ImagePlus, Loader2, RotateCcw, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { CapaQueGira } from '@/components/media/CapaQueGira';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +15,7 @@ import { meuSaldo } from '@/lib/studioai/api';
 import { LOGOS_OFICIAIS, logosDaPasta, type LogoDaPasta } from '@/lib/studio/logos';
 import { arquivarSelo, ehCentral, enviarParaBiblioteca, listarSelos } from '@/lib/tabloide/selos';
 import { guardarNoAcervo } from '@/lib/studio/acervo';
+import { PASTAS_DE_LOGOS, logosDaPastaDe, pastaDeLogo, type GrupoDePasta } from '@/lib/studio/pastasDeLogos';
 import { desenharLogoPersonalizada, lembrarValores, pngDoCanvas, valoresIniciais, type ValoresDaLogo } from '@/lib/studio/logoPersonalizada';
 
 export const PASTA_LOGOS = 'logos';
@@ -151,6 +153,63 @@ export function PersonalizarLogo({ logo, aoUsar, aoFechar }: { logo: LogoDaPasta
   );
 }
 
+const PASTA_SUAS = 'suas-logos';
+const GRUPOS: Array<{ id: GrupoDePasta; nome: string }> = [{ id: 'segmento', nome: 'Por segmento' }, { id: 'data', nome: 'Datas comemorativas' }];
+
+/**
+ * F-355 (pedido do dono, 22/11/2026): as logos separadas em PASTAS — por segmento do estabelecimento e por data
+ * comemorativa. Primeiro aparecem as pastas; abriu uma, aparecem todas as logos dela.
+ */
+export function PastasDasLogos({ logos, carregando, aoTocar, acaoDaSua, colunas = 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' }: {
+  logos: LogoDaPasta[]; carregando?: boolean; aoTocar?: (l: LogoDaPasta) => void; acaoDaSua?: (l: LogoDaPasta) => React.ReactNode; colunas?: string;
+}) {
+  const [aberta, setAberta] = useState<string | null>(null);
+  const daPessoa = logos.filter((l) => !l.oficial);
+  if (aberta) {
+    const suas = aberta === PASTA_SUAS;
+    const lista = suas ? daPessoa : logosDaPastaDe(logos.filter((l) => l.oficial), aberta);
+    const p = pastaDeLogo(aberta);
+    return (
+      <section className="space-y-3" data-testid="pasta-de-logos-aberta">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setAberta(null)} className="flex h-10 items-center gap-1 rounded-lg border border-white/15 px-3 text-sm text-white hover:bg-white/5" data-testid="pastas-voltar"><ArrowLeft className="h-4 w-4" />Pastas</button>
+          <h2 className="truncate text-base font-black text-white">{suas ? '⭐ Suas logos' : `${p?.icone ?? ''} ${p?.nome ?? aberta}`}</h2>
+          <span className="text-xs text-slate-400">{lista.length} {lista.length === 1 ? 'logo' : 'logos'}</span>
+        </div>
+        {suas && carregando ? <p className="flex items-center gap-2 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Abrindo a pasta…</p>
+          : !lista.length ? <p className="rounded-xl border border-dashed border-white/15 p-6 text-center text-sm text-slate-400">{suas ? 'Nenhuma ainda. Envie um PNG sem fundo ou crie uma logo 3D.' : 'Nenhuma logo nesta pasta ainda.'}</p>
+            : <div className={cn('grid gap-2', colunas)}>{lista.map((l) => <CartaoDaLogo key={l.id} l={l} aoTocar={aoTocar ? () => aoTocar(l) : undefined} acao={suas ? acaoDaSua?.(l) : undefined} />)}</div>}
+      </section>
+    );
+  }
+  const capa = (lista: LogoDaPasta[]) => lista.slice(0, 4);
+  const Cartao = ({ id, nome, icone, lista }: { id: string; nome: string; icone: string; lista: LogoDaPasta[] }) => (
+    <button type="button" onClick={() => setAberta(id)} className={cn('rounded-xl border border-white/10 bg-[#14062f] p-2 text-left hover:border-[#B04DFF]/70', !lista.length && 'opacity-55')} data-testid="pasta-de-logos" aria-label={`Abrir a pasta ${nome}`}>
+      <span className="grid aspect-[3/2] w-full grid-cols-2 grid-rows-2 gap-0.5 overflow-hidden rounded-lg p-1" style={XADREZ}>
+        {lista.length ? capa(lista).map((l) => <img key={l.id} src={l.miniatura ?? l.url} alt="" loading="lazy" crossOrigin="anonymous" className={cn('h-full w-full object-contain', lista.length === 1 && 'col-span-2 row-span-2')} />)
+          : <span className="col-span-2 row-span-2 flex items-center justify-center text-4xl">{icone}</span>}
+      </span>
+      <span className="mt-1 flex items-center gap-1 truncate text-xs font-bold text-white"><span>{icone}</span>{nome}</span>
+      <span className="text-[10px] text-slate-400">{lista.length ? `${lista.length} ${lista.length === 1 ? 'logo' : 'logos'}` : 'em breve'}</span>
+    </button>
+  );
+  const oficiais = logos.filter((l) => l.oficial);
+  return (
+    <div className="space-y-4" data-testid="pastas-das-logos">
+      <section className="space-y-2">
+        <h2 className="text-sm font-bold text-white">Suas logos</h2>
+        <div className={cn('grid gap-2', colunas)}><Cartao id={PASTA_SUAS} nome="Suas logos" icone="⭐" lista={daPessoa} /></div>
+      </section>
+      {GRUPOS.map((g) => (
+        <section key={g.id} className="space-y-2">
+          <h2 className="text-sm font-bold text-white">{g.nome}</h2>
+          <div className={cn('grid gap-2', colunas)}>{PASTAS_DE_LOGOS.filter((p) => p.grupo === g.id).map((p) => <Cartao key={p.id} id={p.id} nome={p.nome} icone={p.icone} lista={logosDaPastaDe(oficiais, p.id)} />)}</div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 /** A janela "Trocar logo": escolher da pasta ou enviar uma nova (que já fica guardada na pasta). */
 export function EscolherLogo({ titulo, aoEscolher, aoRestaurar, aoFechar }: { titulo: string; aoEscolher: (l: LogoDaPasta) => void; /** volta para a logo padrão do encarte */ aoRestaurar?: () => void; aoFechar: () => void }) {
   const { logos, carregando } = useLogosDaPasta();
@@ -170,7 +229,7 @@ export function EscolherLogo({ titulo, aoEscolher, aoRestaurar, aoFechar }: { ti
           {aoRestaurar && <button type="button" onClick={aoRestaurar} className="flex h-10 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-sm text-white hover:bg-white/5" data-testid="logo-restaurar"><RotateCcw className="h-4 w-4" />Logo original do encarte</button>}
         </div>
         {carregando ? <p className="flex items-center gap-2 py-6 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Abrindo a pasta…</p> : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{logos.map((l) => <CartaoDaLogo key={l.id} l={l} aoTocar={() => (l.espacos ? setPersonalizando(l) : aoEscolher(l))} />)}</div>
+          <PastasDasLogos logos={logos} carregando={carregando} colunas="grid-cols-2 sm:grid-cols-3" aoTocar={(l) => (l.espacos ? setPersonalizando(l) : aoEscolher(l))} />
         )}
       </DialogContent>
     </Dialog>
@@ -195,7 +254,6 @@ export function PastaDeLogos() {
     catch (e) { toast.error((e as Error).message || 'Não foi possível tirar a logo.'); }
   };
   const [personalizando, setPersonalizando] = useState<LogoDaPasta | null>(null);
-  const oficiais = logos.filter((l) => l.oficial), daPessoa = logos.filter((l) => !l.oficial);
   return (
     <div className="space-y-4" data-testid="studio-pasta-logos">
       {personalizando && <PersonalizarLogo logo={personalizando} aoUsar={() => setPersonalizando(null)} aoFechar={() => setPersonalizando(null)} />}
@@ -203,23 +261,15 @@ export function PastaDeLogos() {
         <Link to="/studio" className="flex h-10 items-center gap-1 rounded-lg px-2 text-sm text-slate-300 hover:bg-white/5"><ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">Modelos</span></Link>
         <div className="mr-auto min-w-0">
           <h1 className="flex items-center gap-2 truncate text-xl font-black text-white"><FolderOpen className="h-5 w-5 shrink-0 text-[#FFD400]" />Logos</h1>
-          <p className="text-xs text-slate-400">Todas as logos ficam aqui. Em cada encarte e no Palco, toque em “Trocar logo” para escolher uma delas.</p>
+          <p className="text-xs text-slate-400">As logos ficam separadas em pastas, por segmento e por data comemorativa. Em cada encarte e no Palco, toque em “Trocar logo” para escolher uma delas.</p>
         </div>
         {central && <label className="flex items-center gap-1.5 text-xs text-slate-300"><input type="checkbox" checked={paraTodos} onChange={(e) => setParaTodos(e.target.checked)} className="h-4 w-4 accent-[#FFD400]" />Para todos os usuários</label>}
         <input ref={arquivo} type="file" accept={CAMPO_ARQUIVO} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void enviar(f, paraTodos); }} />
         <button type="button" onClick={() => arquivo.current?.click()} disabled={enviando} className="flex h-10 items-center gap-1.5 rounded-lg bg-[#5D1BFF] px-3 text-sm font-semibold text-white hover:bg-[#8A2EFF]" data-testid="pasta-logos-enviar">{enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}Enviar logo</button>
         <Link to="/studio/logos" className="flex h-10 items-center gap-1.5 rounded-lg border border-white/15 px-3 text-sm text-white hover:bg-white/5"><Sparkles className="h-4 w-4 text-[#FFD400]" />Criar logo 3D</Link>
       </div>
-      <section className="space-y-2">
-        <h2 className="text-sm font-bold text-white">Logos oficiais</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{oficiais.map((l) => <CartaoDaLogo key={l.id} l={l} aoTocar={l.espacos ? () => setPersonalizando(l) : undefined} />)}</div>
-      </section>
-      <section className="space-y-2">
-        <h2 className="text-sm font-bold text-white">Suas logos</h2>
-        {carregando ? <p className="flex items-center gap-2 text-sm text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Abrindo a pasta…</p>
-          : !daPessoa.length ? <p className="rounded-xl border border-dashed border-white/15 p-6 text-center text-sm text-slate-400">Nenhuma ainda. Envie um PNG sem fundo ou crie uma logo 3D.</p>
-            : <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{daPessoa.map((l) => <CartaoDaLogo key={l.id} l={l} acao={l.dono && l.dono === user?.id ? <button type="button" onClick={() => void tirar(l)} aria-label={`Tirar a logo ${l.nome}`} className="absolute right-3 top-3 rounded-lg bg-black/60 p-1.5 text-rose-300 hover:bg-black/80"><Trash2 className="h-4 w-4" /></button> : undefined} />)}</div>}
-      </section>
+      <PastasDasLogos logos={logos} carregando={carregando} aoTocar={(l) => (l.espacos ? setPersonalizando(l) : undefined)}
+        acaoDaSua={(l) => (l.dono && l.dono === user?.id ? <button type="button" onClick={() => void tirar(l)} aria-label={`Tirar a logo ${l.nome}`} className="absolute right-3 top-3 rounded-lg bg-black/60 p-1.5 text-rose-300 hover:bg-black/80"><Trash2 className="h-4 w-4" /></button> : undefined)} />
     </div>
   );
 }

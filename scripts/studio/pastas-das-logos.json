@@ -1,0 +1,83 @@
+{
+  "_leia": "F-355 (pedido do dono, 22/11/2026): a pasta de cada logo de promoção (ids das pastas em src/lib/studio/pastasDeLogos.ts). Logo nova: ponha o id dela na pasta certa e rode node scripts/studio/logos-de-promocao.mjs --lista.",
+  "mercado": [
+    "oferta-do-dia",
+    "semana-das-ofertas",
+    "ofertas-do-dia-verde",
+    "preco-baixo-e-aqui",
+    "super-ofertas",
+    "show-de-ofertas",
+    "oferta-do-dia-azul",
+    "ofertas-do-dia-carrinho",
+    "saldao-de-ofertas",
+    "terca-de-ofertas",
+    "sempre-o-menor-preco",
+    "fim-de-semana-de-ofertas",
+    "operacao-detona-preco",
+    "venha-economizar-de-verdade",
+    "fecha-mes"
+  ],
+  "acougue": [
+    "quinta-da-carne",
+    "domingo-da-carne",
+    "sexta-da-carne",
+    "sabado-da-carne",
+    "ofertas-do-acougue",
+    "quarta-das-carnes",
+    "festival-acougue",
+    "sexta-da-carne-brasa",
+    "semana-do-acougue",
+    "sexta-da-carne-churrasqueira",
+    "sexta-da-carne-touro",
+    "ofertao-da-carne"
+  ],
+  "black-friday": [
+    "semana-black-friday-laranja",
+    "semana-black-friday-vermelha",
+    "semana-black-friday-amarela",
+    "semana-black-friday-prata",
+    "black-friday-redonda",
+    "black-friday-placa",
+    "black-friday-carrinho",
+    "esquenta-black-friday-preta",
+    "esquenta-black-friday-vermelha",
+    "esquenta-black-friday-laranja",
+    "black-friday-raios",
+    "black-das-black",
+    "black-friday-calendario",
+    "black-friday-azul",
+    "mes-da-black-friday",
+    "black-friday-megafone",
+    "black-friday-dados"
+  ],
+  "natal": [
+    "saldao-de-natal",
+    "natal-de-ofertas-vermelho",
+    "natal-de-ofertas-verde",
+    "natal-de-ofertas-dourado",
+    "natal-de-ofertas-guirlanda",
+    "natal-de-ofertas-enfeite",
+    "natal-de-ofertas-escudo",
+    "natal-de-ofertas-coroa",
+    "natal-de-ofertas-gorro",
+    "presentes-de-natal",
+    "feliz-natal-laco",
+    "feliz-natal-gorro",
+    "ofertas-de-natal-faixa",
+    "ofertas-de-natal-azul",
+    "ofertas-de-natal-dourado",
+    "natal-premiado-gorro",
+    "natal-premiado-bolas",
+    "ofertas-do-natal",
+    "natal-de-premios",
+    "ofertas-natalinas",
+    "mega-natal-de-ofertas-vermelho",
+    "mega-natal-de-ofertas-verde"
+  ],
+  "fim-de-ano": [
+    "ofertas-de-fim-de-ano"
+  ],
+  "sao-joao": [
+    "arraia-de-ofertas"
+  ]
+}

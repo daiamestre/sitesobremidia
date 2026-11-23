@@ -1,173 +1,31 @@
 {
-  "_leia": "F-355 (pedido do dono, 22/11/2026): faixas, placas e espaços das logos de promoção que o usuário personaliza. Medidas em pixels do arquivo da logo. 'textos' = faixa/placa onde o usuário escreve (começa com o nome da empresa); 'logo' = espaço OPCIONAL da logo do usuário (sem ela, o espaço não aparece); 'somePorLogo' = o texto dá lugar à logo quando o usuário põe uma. 'alvo' = onde a logo do usuário fica dentro do círculo (a parte que aparece; o resto fica atrás dos desenhos da frente).",
+  "_leia": "F-355 (pedido do dono, 22/11/2026): faixas, placas e espaços das logos de promoção que o usuário personaliza. Medidas em pixels do arquivo da logo. 'textos' = faixa/placa onde o usuário escreve (começa com o nome da empresa), no FORMATO da faixa ('arco' = curva; baixo = curva de sorriso) e no ESTILO da logo (fonte, cor ou degradê, contorno, sombra). 'logo' = espaço OPCIONAL da logo do usuário (sem ela, o espaço não aparece); a logo do usuário aparece só no miolo branco ('vaga', gerada pela receita). 'alvo' = onde a logo do usuário fica. 'somePorLogo' = o texto dá lugar à logo quando o usuário põe uma.",
   "quarta-das-carnes": {
-    "textos": [
-      {
-        "id": "alca",
-        "rotulo": "Na alça de cima",
-        "caixa": [
-          470,
-          5,
-          340,
-          75
-        ],
-        "arco": {
-          "cx": 638,
-          "cy": 197,
-          "r": 170,
-          "de": -142,
-          "ate": -32
-        },
-        "cor": "#ffffff",
-        "maxTamanho": 32
-      }
-    ],
-    "logo": {
-      "rotulo": "No disco de madeira",
-      "circulo": [
-        676,
-        1104,
-        108
-      ]
-    }
+    "textos": [{ "id": "alca", "rotulo": "Na alça de cima", "caixa": [440, 0, 360, 110], "arco": { "cx": 622, "cy": 220, "r": 192, "de": -146, "ate": -25 },
+      "cor": "#ffffff", "sombra": { "cor": "rgba(0,0,0,0.55)", "x": 0, "y": 2, "desfoque": 3 }, "fonte": "montserrat", "peso": 800, "espaco": 0.06, "maxTamanho": 30 }],
+    "logo": { "rotulo": "No disco de madeira", "circulo": [671, 1102, 100], "alvo": [586, 1022, 170, 160] }
   },
   "sexta-da-carne-brasa": {
-    "textos": [
-      {
-        "id": "placa",
-        "rotulo": "Na placa de baixo",
-        "caixa": [
-          385,
-          940,
-          510,
-          210
-        ],
-        "cor": "#c8161d",
-        "contorno": {
-          "cor": "#ffffff",
-          "largura": 5
-        }
-      }
-    ],
-    "logo": {
-      "rotulo": "No círculo de cima",
-      "circulo": [
-        1050,
-        212,
-        168
-      ],
-      "anel": {
-        "cor": "#e3001b",
-        "largura": 20,
-        "fundo": "#ffffff"
-      },
-      "alvo": [
-        1045,
-        62,
-        160,
-        145
-      ]
-    }
+    "textos": [{ "id": "placa", "rotulo": "Na placa de madeira", "caixa": [395, 950, 490, 190],
+      "cor": "#d3141c", "degrade": ["#ee2a2f", "#a80d14"], "sombra": { "cor": "rgba(90,20,0,0.45)", "x": 0, "y": 4, "desfoque": 4 }, "fonte": "baloo", "peso": 800 }],
+    "logo": { "rotulo": "No círculo de cima", "circulo": [1046, 213, 140], "alvo": [1045, 62, 160, 145] }
   },
   "ofertas-de-natal-faixa": {
-    "textos": [
-      {
-        "id": "faixa",
-        "rotulo": "Na faixa vermelha",
-        "caixa": [
-          270,
-          832,
-          800,
-          115
-        ],
-        "cor": "#ffffff",
-        "contorno": {
-          "cor": "#7a0a0a",
-          "largura": 6
-        }
-      }
-    ]
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa vermelha", "caixa": [300, 800, 760, 160], "arco": { "cx": 767, "cy": 2343, "r": 1471, "de": -105, "ate": -80.5 },
+      "cor": "#ffffff", "degrade": ["#ffffff", "#e2e2e2"], "contorno": { "cor": "#7a0a0a", "largura": 5 }, "sombra": { "cor": "rgba(60,0,0,0.5)", "x": 0, "y": 5, "desfoque": 6 }, "fonte": "baloo", "peso": 800, "maxTamanho": 82 }]
   },
   "natal-de-ofertas-gorro": {
-    "textos": [
-      {
-        "id": "pano",
-        "rotulo": "No pano branco",
-        "caixa": [
-          425,
-          985,
-          450,
-          115
-        ],
-        "cor": "#d8261c",
-        "somePorLogo": true
-      }
-    ],
-    "logo": {
-      "rotulo": "No pano branco",
-      "caixa": [
-        420,
-        975,
-        465,
-        130
-      ]
-    }
+    "textos": [{ "id": "pano", "rotulo": "No pano branco", "caixa": [425, 985, 450, 115], "arco": { "cx": 639, "cy": 344, "r": 716, "de": 107, "ate": 71, "baixo": true },
+      "cor": "#e5261d", "fonte": "montserrat", "peso": 900, "maxTamanho": 96, "somePorLogo": true }],
+    "logo": { "rotulo": "No pano branco", "caixa": [420, 975, 465, 130] }
   },
   "esquenta-black-friday-laranja": {
-    "textos": [
-      {
-        "id": "placa",
-        "rotulo": "Na placa laranja",
-        "caixa": [
-          215,
-          915,
-          810,
-          155
-        ],
-        "cor": "#ffffff",
-        "contorno": {
-          "cor": "#1a0d00",
-          "largura": 7
-        }
-      }
-    ]
+    "textos": [{ "id": "placa", "rotulo": "Na placa laranja", "caixa": [225, 920, 790, 145],
+      "cor": "#ffffff", "degrade": ["#ffffff", "#dcdcdc"], "contorno": { "cor": "#1a0d00", "largura": 7 }, "sombra": { "cor": "rgba(0,0,0,0.45)", "x": 0, "y": 5, "desfoque": 4 }, "fonte": "archivo-black", "peso": 400 }]
   },
   "black-friday-dados": {
-    "textos": [
-      {
-        "id": "placa",
-        "rotulo": "Na placa preta",
-        "caixa": [
-          470,
-          830,
-          530,
-          180
-        ],
-        "cor": "#ffffff",
-        "contorno": {
-          "cor": "#ff7a00",
-          "largura": 5
-        }
-      }
-    ],
-    "logo": {
-      "rotulo": "No círculo de cima",
-      "circulo": [
-        1075,
-        268,
-        206
-      ],
-      "anel": {
-        "cor": "#111111",
-        "largura": 26,
-        "fundo": "#ffffff"
-      },
-      "alvo": [
-        985,
-        92,
-        255,
-        150
-      ]
-    }
+    "textos": [{ "id": "placa", "rotulo": "Na placa preta", "caixa": [470, 835, 530, 175],
+      "cor": "#ffffff", "degrade": ["#ffffff", "#ffd27a"], "contorno": { "cor": "#ff7a00", "largura": 3 }, "sombra": { "cor": "rgba(255,122,0,0.9)", "x": 0, "y": 0, "desfoque": 14 }, "fonte": "archivo-black", "peso": 400 }],
+    "logo": { "rotulo": "No círculo de cima", "circulo": [1067, 287, 199], "alvo": [985, 92, 255, 150] }
   }
 }

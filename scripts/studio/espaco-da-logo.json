@@ -1,21 +1,19 @@
 {
-  "_leia": "F-355 (pedido do dono, 22/11/2026): nas logos com dizeres de modelo ('YOUR LOGO HERE', 'SUA LOGO', 'ALPHA BACKGROUND' e o circulo de xadrez pintado) SO esses dizeres saem. 'limites' e a caixa onde a receita pode mexer: fora dela a logo fica identica ao arquivo do dono (o teste logosDePromocao355 confere pixel a pixel). 'frente' e o circulo da logo do usuario: o que estava na frente do circulo (carne, garfo, letras) volta por cima quando o usuario poe a logo dele.",
+  "_leia": "F-355 (pedido do dono, 22/11/2026): só os dizeres de modelo saem ('YOUR LOGO HERE', 'SUA LOGO', 'ALPHA BACKGROUND' e o xadrez pintado). NADA do desenho é inventado: aro, disco e pano ficam. 'limites' = caixa onde a receita pode mexer; fora dela a logo é IDÊNTICA ao arquivo do dono (o teste logosDePromocao355 confere pixel a pixel). Medidas em pixels do arquivo do dono.",
   "quarta-das-carnes": { "zonas": [
-    { "limites": [560, 1030, 795, 1130], "caixa": [565, 1034, 790, 1128], "circulo": [677, 1106, 132], "regras": ["branco"], "inteiro": true, "crescer": 0, "preencher": "vertical" },
-    { "limites": [470, 5, 800, 130], "circulo": [638, 197, 188], "regras": ["clarinho"], "crescer": 3, "preencher": "espalhar",
-      "proteger": [[[380, 62], [444, 67], [539, 169], [528, 191], [472, 180], [370, 70]], [790, 0, 1000, 330]] }
+    { "modo": "aro", "limites": [420, 0, 840, 160], "centro": [622, 220], "raios": [174, 211], "angulos": [-146, -25], "letra": { "lum": 95, "neutro": 28 }, "fonte": { "lumMax": 60, "neutro": 22 }, "crescer": 6, "crescerNeutro": 50, "crescerEscuro": 75, "beirada": 6,
+      "proteger": [[[380, 62], [444, 67], [539, 169], [528, 191], [472, 180], [370, 70]], [[828, 172], [900, 25], [1000, 25], [1000, 330], [780, 330]], [[730, 117], [850, 156], [850, 240], [730, 240]]] },
+    { "modo": "colunas", "limites": [550, 995, 795, 1210], "face": [671, 1102, 117, 101], "margem": 3, "letra": { "lum": 165, "neutro": 70 }, "crescer": 13 }
+  ] },
+  "sexta-da-carne-brasa": { "zonas": [
+    { "modo": "aro", "limites": [880, 20, 1228, 260], "centro": [1046, 213], "raios": [143, 182], "angulos": [-135, 0], "letra": { "lum": 150, "neutro": 50 }, "fonte": { "vermelho": 110 }, "crescer": 3 },
+    { "modo": "xadrez", "limites": [840, 5, 1228, 420], "tons": [[222, 240], [246, 255]], "neutro": 16 }
   ] },
   "natal-de-ofertas-gorro": { "zonas": [
-    { "limites": [410, 975, 890, 1110], "caixa": [415, 978, 885, 1104], "regras": ["vermelhoTexto"], "inteiro": true, "crescer": 0, "preencher": "vertical" }
+    { "modo": "liso", "limites": [415, 975, 885, 1110], "letra": { "vermelho": 60 }, "crescer": 3 }
   ] },
-  "sexta-da-carne-brasa": { "frente": [1050, 215, 205], "zonas": [
-    { "limites": [840, 5, 1228, 420], "circulo": [1050, 215, 205], "regras": ["vermelhoVivo", "claroNeutro"], "crescer": 2, "buracos": true, "xadrezSai": true, "preencher": "clonar",
-      "sementes": [[1100, 60], [1180, 150], [1210, 250], [950, 90], [1100, 150], [1150, 250]],
-      "proteger": [[860, 217, 1061, 227], [860, 275, 1071, 283], [[960, 322], [1102, 318], [1150, 400], [960, 400]]] }
-  ], "clonar": { "centro": [611, 660], "graus": -44, "sujo": [[170, 170, 730, 262], [690, 140, 970, 330], [60, 285, 1228, 1281]] } },
-  "black-friday-dados": { "frente": [1085, 285, 262], "zonas": [
-    { "limites": [830, 30, 1342, 560], "circulo": [1085, 285, 262], "regras": ["claroNeutro", "escuroNeutro"], "crescer": 2, "buracos": true, "preencher": "clonar",
-      "sementes": [[1100, 80], [1250, 250], [1270, 350], [1150, 300], [1000, 150], [1200, 150], [920, 215], [1270, 390]],
-      "proteger": [[[1040, 247], [1111, 256], [1115, 312], [1146, 268], [1222, 286], [1181, 385], [1224, 470], [1224, 560], [1036, 560]]] }
-  ], "clonar": { "centro": [546, 607], "graus": -40, "fora": 525, "sujo": [[200, 188, 1342, 1172], [80, 0, 340, 270]] } }
+  "black-friday-dados": { "zonas": [
+    { "modo": "aro", "limites": [830, 40, 1342, 330], "centro": [1053, 308], "raios": [203, 246], "angulos": [-130, -12], "letra": { "lum": 110, "neutro": 40 }, "fonte": { "lumMax": 80, "neutro": 22 }, "crescer": 3 },
+    { "modo": "xadrez", "limites": [830, 40, 1342, 560], "tons": [[211, 217], [249, 255]], "janela": 18, "minimo": 0.04, "pedaco": 150 }
+  ] }
 }

@@ -6,16 +6,16 @@ import { SEGMENTOS_DE_OFERTA, logoDoSegmento, type SegmentoNovo } from './segmen
 import { LOGOS_DE_PROMOCAO } from './logosDePromocao';
 import type { EspacosDaLogo } from './logoPersonalizada';
 
-export interface LogoDaPasta { id: string; nome: string; url: string; largura: number; altura: number; oficial?: boolean; /** dono na biblioteca (a própria pessoa pode tirar) */ dono?: string | null; miniatura?: string | null; /** F-355: faixas e espaços que o usuário personaliza (texto e a logo dele) */ espacos?: EspacosDaLogo }
+export interface LogoDaPasta { id: string; nome: string; url: string; largura: number; altura: number; oficial?: boolean; /** dono na biblioteca (a própria pessoa pode tirar) */ dono?: string | null; miniatura?: string | null; /** F-355: a pasta da logo (segmento ou data comemorativa, em pastasDeLogos.ts) */ pasta?: string; /** F-355: faixas e espaços que o usuário personaliza (texto e a logo dele) */ espacos?: EspacosDaLogo }
 
-export const LOGO_MEGA_OFERTA: LogoDaPasta = { id: 'oficial-mega-oferta', nome: 'Mega Oferta', url: '/studio/logos/mega-oferta.webp', largura: 1531, altura: 1024, oficial: true };
-export const LOGO_SEMANA_DO_FRANGO: LogoDaPasta = { id: 'oficial-semana-do-frango', nome: 'Semana do Frango', url: '/studio/logos/semana-do-frango.webp', largura: 1460, altura: 1024, oficial: true };
-export const LOGO_ALERTA_DE_OFERTA: LogoDaPasta = { id: 'oficial-alerta-de-oferta', nome: 'Alerta de Oferta', url: '/studio/logos/alerta-de-oferta.webp', largura: 1530, altura: 1164, oficial: true };
+export const LOGO_MEGA_OFERTA: LogoDaPasta = { id: 'oficial-mega-oferta', nome: 'Mega Oferta', url: '/studio/logos/mega-oferta.webp', largura: 1531, altura: 1024, oficial: true, pasta: 'mercado' };
+export const LOGO_SEMANA_DO_FRANGO: LogoDaPasta = { id: 'oficial-semana-do-frango', nome: 'Semana do Frango', url: '/studio/logos/semana-do-frango.webp', largura: 1460, altura: 1024, oficial: true, pasta: 'acougue' };
+export const LOGO_ALERTA_DE_OFERTA: LogoDaPasta = { id: 'oficial-alerta-de-oferta', nome: 'Alerta de Oferta', url: '/studio/logos/alerta-de-oferta.webp', largura: 1530, altura: 1164, oficial: true, pasta: 'mercado' };
 /** F-259: a logo da farmácia (encarte e palco de farmácia) */
-export const LOGO_OFERTAS_DE_FARMACIA: LogoDaPasta = { id: 'oficial-ofertas-de-farmacia', nome: 'Ofertas de Farmácia', url: '/studio/logos/ofertas-de-farmacia.webp', largura: 1500, altura: 1050, oficial: true };
+export const LOGO_OFERTAS_DE_FARMACIA: LogoDaPasta = { id: 'oficial-ofertas-de-farmacia', nome: 'Ofertas de Farmácia', url: '/studio/logos/ofertas-de-farmacia.webp', largura: 1500, altura: 1050, oficial: true, pasta: 'farmacia' };
 /** Logo oficial nova do dono = o arquivo em scripts/studio/preparar-logos.mjs e uma entrada aqui. */
 /** F-277: a logo de cada segmento (padaria, adega, açougue...), gerada em scripts/studio/gerar-segmentos.mjs */
-export const logoOficialDoSegmento = (s: SegmentoNovo): LogoDaPasta => ({ id: `oficial-ofertas-${s}`, nome: `Ofertas – ${SEGMENTOS_DE_OFERTA.find((x) => x.id === s)?.nome ?? s}`, url: logoDoSegmento(s), largura: 1500, altura: 1050, oficial: true });
+export const logoOficialDoSegmento = (s: SegmentoNovo): LogoDaPasta => ({ id: `oficial-ofertas-${s}`, nome: `Ofertas – ${SEGMENTOS_DE_OFERTA.find((x) => x.id === s)?.nome ?? s}`, url: logoDoSegmento(s), largura: 1500, altura: 1050, oficial: true, pasta: s });
 /** F-355: as logos de promoção enviadas pelo dono vêm primeiro (scripts/studio/logos-de-promocao.mjs) e aparecem para todos */
 export const LOGOS_OFICIAIS: LogoDaPasta[] = [...LOGOS_DE_PROMOCAO, LOGO_MEGA_OFERTA, LOGO_SEMANA_DO_FRANGO, LOGO_ALERTA_DE_OFERTA, LOGO_OFERTAS_DE_FARMACIA, ...SEGMENTOS_DE_OFERTA.map((x) => logoOficialDoSegmento(x.id))];
 

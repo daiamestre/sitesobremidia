@@ -74,6 +74,8 @@ Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
   - O usuário pode pôr ali a logo da empresa dele. É OPCIONAL: sem ela, o espaço não existe e a logo funciona completa sozinha.
   - Toda faixa, placa ou espaço vazio vira texto editável, que começa com o nome da empresa. O texto fica preso na logo e acompanha quando ela se move, aumenta ou gira.
   - Vale para todas as logos da pasta, inclusive as que já estavam lá.
+  - NUNCA recortar o desenho (aro, disco, pano): só os dizeres saem; o texto do usuário segue o formato da faixa (reta ou curva) e o estilo da logo.
+- **Pastas de logos (22/11/2026, F-355):** as logos ficam separadas em pastas por segmento (mercado, açougue, farmácia, padaria, Black Friday...) e por data comemorativa (Natal, Dia das Mães, Dia dos Pais, São João, Carnaval...). Abriu a pasta, vê todas as logos dela.
 - **Padrão de criação de vídeo (20/11/2026, F-353):**
   - **Etapas:** 1) logo da promoção e fundo; 2) loja (nome e logo); 3) produtos; 4) locutor e música na mesma etapa. NÃO existe etapa de edição do vídeo: o vídeo sai pronto no padrão e depois se edita tudo (efeitos, sons, produtos, fundo, logos, posição dos balões).
   - **Início:** sempre a logo da promoção, ou a do cliente se ele quiser, caindo e batendo no fundo, com o mesmo som de impacto para todas.

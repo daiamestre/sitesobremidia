@@ -59,7 +59,7 @@ describe('F-355: logos de promoção do dono na galeria', () => {
     expect((p.clipes[0].documento!.camadas.find((c) => c.nome === 'Logo do início') as { src: string }).src).toBe(l.url);
   });
   it('exceção do dono: só os dizeres de modelo saem; fora da caixa deles a logo é idêntica ao arquivo do dono, pixel a pixel', async () => {
-    const cfg = JSON.parse(fs.readFileSync('scripts/studio/espaco-da-logo.json', 'utf8')) as Record<string, { zonas: Array<{ limites: number[] }>; frente?: number[] }>;
+    const cfg = JSON.parse(fs.readFileSync('scripts/studio/espaco-da-logo.json', 'utf8')) as Record<string, { zonas: Array<{ limites: number[]; modo: string }> }>;
     const r = fs.readFileSync('scripts/studio/espaco-da-logo.mjs', 'utf8');
     expect(r).not.toMatch(/BiRefNet|removeAlpha|trim\(/); // nada de IA de recorte nem de cortar a logo
     for (const [id, c] of Object.entries(cfg)) {
@@ -76,12 +76,15 @@ describe('F-355: logos de promoção do dono na galeria', () => {
         if (!naZona(k % W, Math.floor(k / W))) foraDaCaixa++;
       }
       expect(foraDaCaixa, `${id}: pixels mudados fora da caixa dos dizeres`).toBe(0);
-      if (c.frente) { // a frente (carne, garfo, letras que ficavam na frente do círculo) são os pixels do dono, sem mudança
-        const f = await sharp(`../logos-de-promocao-originais/${id}-frente-${marca}.png`).ensureAlpha().raw().toBuffer();
-        let diferentes = 0, usados = 0;
-        for (let k = 0; k < W * a.info.height; k++) if (f[k * 4 + 3]) { usados++; if (f.readUInt32LE(k * 4) !== a.data.readUInt32LE(k * 4)) diferentes++; }
-        expect(usados, id).toBeGreaterThan(1000);
-        expect(diferentes, id).toBe(0);
+      // NADA RECORTADO (reclamação do dono, 22/11/2026: "a Black Friday está toda recortada"): nenhum ponto do desenho some
+      let furos = 0; for (let k = 0; k < W * a.info.height; k++) if (a.data[k * 4 + 3] > 200 && b.data[k * 4 + 3] < a.data[k * 4 + 3] - 8) furos++;
+      expect(furos, `${id}: pontos do desenho que ficaram transparentes`).toBe(0);
+      if (c.zonas.some((z) => z.modo === 'xadrez')) { // a vaga da logo do usuário é só o miolo cinza do xadrez, nunca o desenho colorido
+        const v = await sharp(`../logos-de-promocao-originais/${id}-vaga-${marca}.png`).ensureAlpha().raw().toBuffer();
+        let naVaga = 0, coloridos = 0;
+        for (let k = 0; k < W * a.info.height; k++) if (v[k * 4 + 3] > 128) { naVaga++; const [r, g, bl] = [a.data[k * 4], a.data[k * 4 + 1], a.data[k * 4 + 2]]; if (Math.max(r, g, bl) - Math.min(r, g, bl) > 40) coloridos++; }
+        expect(naVaga, id).toBeGreaterThan(20000);
+        expect(coloridos / naVaga, `${id}: desenho colorido dentro da vaga`).toBeLessThan(0.01);
       }
     }
   }, 120_000);
@@ -93,7 +96,7 @@ describe('F-355: logos de promoção do dono na galeria', () => {
       expect(e.textos.length, l.id).toBeGreaterThan(0);
       for (const t of e.textos) { const [x, y, w, h] = t.caixa; expect(x >= 0 && y >= 0 && x + w <= l.largura && y + h <= l.altura, `${l.id} ${t.id}`).toBe(true); }
       if (e.logo?.circulo) { const [cx, cy, r] = e.logo.circulo; expect(cx - r >= 0 && cy - r >= 0 && cx + r <= l.largura && cy + r <= l.altura, l.id).toBe(true); }
-      if (e.frente) expect(fs.existsSync(`public${e.frente}`), l.id).toBe(true);
+      if (e.vaga) expect(fs.existsSync(`public${e.vaga}`), l.id).toBe(true);
     }
     // começa com o nome da empresa (o mesmo do Palco de Ofertas); a logo do usuário só entra se ele puser
     localStorage.setItem('studio-locucao-loja', 'Mercado Bom Preço');
@@ -103,5 +106,13 @@ describe('F-355: logos de promoção do dono na galeria', () => {
     localStorage.removeItem('studio-locucao-loja');
     expect(tamanhoQueCabe((t) => t * 10, 500, 80)).toBe(50);
     expect(duasLinhas('SUPERMERCADO BOM PRECO')).toEqual(['SUPERMERCADO', 'BOM PRECO']);
+  });
+  it('pastas (pedido do dono): toda logo oficial está numa pasta de segmento ou de data comemorativa', async () => {
+    const { PASTAS_DE_LOGOS, logosDaPastaDe } = await import('@/lib/studio/pastasDeLogos');
+    const ids = PASTAS_DE_LOGOS.map((p) => p.id);
+    for (const l of LOGOS_OFICIAIS) expect(ids, l.id).toContain(l.pasta);
+    for (const p of ['mercado', 'acougue', 'farmacia', 'padaria', 'black-friday', 'natal', 'dia-das-maes', 'dia-dos-pais', 'sao-joao', 'carnaval']) expect(ids).toContain(p);
+    expect(logosDaPastaDe(LOGOS_OFICIAIS, 'black-friday').map((l) => l.id)).toContain('promocao-black-friday-dados');
+    expect(logosDaPastaDe(LOGOS_OFICIAIS, 'natal').length).toBeGreaterThan(10);
   });
 });

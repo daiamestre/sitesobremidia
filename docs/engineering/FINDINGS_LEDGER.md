@@ -4108,3 +4108,20 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - No "Trocar logo", essas abrem "seu nome e sua logo": o texto começa com o nome da empresa (`studio-locucao-loja`), e a logo do usuário é opcional (sem ela, o espaço não aparece).
   - Tudo vira UMA imagem: o texto fica preso e acompanha quando a logo se move, aumenta ou gira. A imagem vai para "Suas logos" do usuário.
 - **Falha antiga achada no teste:** `guardarNoAcervo` chamava `.catch` no pedido do Supabase, que não tem `.catch`. Por isso o "Enviar logo" do Studio guardava a logo, mas dava erro e não a escolhia. Corrigido com `Promise.resolve().then(...)`.
+- **Correção (22/11/2026, reclamação do dono: "a Black Friday está toda recortada, com espaços faltando"):**
+  - A 1ª versão tirava o círculo de xadrez INTEIRO e "inventava" o fundo atrás dele. Por isso faltavam pedaços do aro e do desenho.
+  - Agora `espaco-da-logo.mjs` só mexe nos dizeres, com quatro modos:
+    - `aro`: as letras em cima do aro recebem a cor do próprio aro ao longo da curva;
+    - `xadrez`: o xadrez pintado vira branco e vira a "vaga" da logo do usuário;
+    - `colunas`: no disco de tábuas, a cor da coluna mais os veios da própria tábua;
+    - `liso`: o pano preenche suave.
+  - Aro, disco, pano, carne e garfo ficam como o dono desenhou.
+  - O teste agora também barra "furos": nenhum ponto do desenho pode ficar mais transparente. E confere que a vaga é só o miolo cinza.
+- **Texto no estilo de cada logo:**
+  - Em `espacos-das-logos.json`, cada faixa tem o FORMATO dela: reta ou em arco, inclusive o sorriso do pano e da fita, com duas linhas quando cabe maior.
+  - Cada faixa tem também o ESTILO da logo: fonte, degradê, contorno e sombra.
+  - A logo do usuário aparece só na vaga (o miolo branco), atrás da carne, do garfo e das letras, como no original.
+- **Pastas de logos (pedido do dono):**
+  - `src/lib/studio/pastasDeLogos.ts`: pastas por segmento (Mercado e Ofertas, Açougue, Black Friday, Farmácia, Padaria, Hortifrúti, Adega, Pet, Beleza, Suplementos, Eletrônicos, Moda) e por data comemorativa (Carnaval, Páscoa, Dia das Mães, Dia dos Namorados, São João, Dia dos Pais, Dia das Crianças, Natal, Fim de Ano).
+  - A pasta de cada logo de promoção fica em `scripts/studio/pastas-das-logos.json`.
+  - A página Logos e a janela "Trocar logo" abrem primeiro as pastas. Aberta uma pasta, aparecem todas as logos dela.

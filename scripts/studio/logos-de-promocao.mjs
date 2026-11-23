@@ -23,12 +23,14 @@ const ORIGINAIS = path.resolve(RAIZ, '..', 'logos-de-promocao-originais');
 fs.mkdirSync(PASTA, { recursive: true });
 
 const ESPACOS = JSON.parse(fs.readFileSync('scripts/studio/espacos-das-logos.json', 'utf8'));
+const PASTAS = JSON.parse(fs.readFileSync('scripts/studio/pastas-das-logos.json', 'utf8'));
+const pastaDa = (id) => Object.entries(PASTAS).find(([p, ids]) => !p.startsWith('_') && ids.includes(id))?.[0] ?? null;
 const lerManifesto = () => (fs.existsSync(MANIFESTO) ? JSON.parse(fs.readFileSync(MANIFESTO, 'utf8')) : []);
 
 function escreverLista(itens) {
   fs.writeFileSync(MANIFESTO, `${JSON.stringify(itens, null, 2)}\n`);
-  const espacos = (l) => (ESPACOS[l.id] ? `, espacos: ${JSON.stringify({ ...ESPACOS[l.id], ...(l.frente ? { frente: `/studio/logos/promocao/${l.frente}` } : {}) })}` : '');
-  const linhas = itens.map((l) => `  { id: 'promocao-${l.id}', nome: ${JSON.stringify(l.nome)}, url: '/studio/logos/promocao/${l.arquivo}', miniatura: '/studio/logos/promocao/${l.mini}', largura: ${l.largura}, altura: ${l.altura}, oficial: true${espacos(l)} },`);
+  const espacos = (l) => (ESPACOS[l.id] ? `, espacos: ${JSON.stringify({ ...ESPACOS[l.id], ...(l.vaga ? { vaga: `/studio/logos/promocao/${l.vaga}` } : {}) })}` : '');
+  const linhas = itens.map((l) => `  { id: 'promocao-${l.id}', nome: ${JSON.stringify(l.nome)}, url: '/studio/logos/promocao/${l.arquivo}', miniatura: '/studio/logos/promocao/${l.mini}', largura: ${l.largura}, altura: ${l.altura}, oficial: true${pastaDa(l.id) ? `, pasta: '${pastaDa(l.id)}'` : ''}${espacos(l)} },`);
   fs.writeFileSync(LISTA_TS, `// F-355 — logos de promoção enviadas pelo dono (as mais novas primeiro). ARQUIVO GERADO por
 // scripts/studio/logos-de-promocao.mjs: para pôr uma logo nova, rode o script (não edite à mão).
 import type { LogoDaPasta } from './logos';
@@ -47,19 +49,20 @@ async function porLogo(arquivo, id, nome) {
   // a versão só sem os dizeres de modelo (feita por espaco-da-logo.mjs a partir DESTE arquivo do dono), quando houver
   const marcaDoDono = crypto.createHash('sha256').update(doDono).digest('hex').slice(0, 8);
   const limpa = path.join(ORIGINAIS, `${id}-limpa-${marcaDoDono}.png`);
-  const frenteOrig = path.join(ORIGINAIS, `${id}-frente-${marcaDoDono}.png`);
+  const vagaOrig = path.join(ORIGINAIS, `${id}-vaga-${marcaDoDono}.png`);
   const original = fs.existsSync(limpa) ? fs.readFileSync(limpa) : doDono;
   const marca = crypto.createHash('sha256').update(original).digest('hex').slice(0, 8);
-  for (const x of fs.readdirSync(PASTA)) if (new RegExp(`^${id}(-[0-9a-f]{8})?(-mini|-frente)?\.`).test(x)) fs.rmSync(`${PASTA}/${x}`);
+  for (const x of fs.readdirSync(PASTA)) if (new RegExp(`^${id}(-[0-9a-f]{8})?(-mini|-frente|-vaga)?\.`).test(x)) fs.rmSync(`${PASTA}/${x}`);
   const nomeArq = `${id}-${marca}${(path.extname(arquivo) || '.png').toLowerCase()}`;
   const mini = `${id}-${marca}-mini.webp`;
   fs.writeFileSync(`${PASTA}/${nomeArq}`, original); // o MESMO arquivo, sem nenhuma mudança
-  const frente = fs.existsSync(limpa) && fs.existsSync(frenteOrig) ? `${id}-${marca}-frente.png` : null;
-  if (frente) fs.copyFileSync(frenteOrig, `${PASTA}/${frente}`);
+  const vaga = fs.existsSync(limpa) && fs.existsSync(vagaOrig) ? `${id}-${marca}-vaga.png` : null; // onde a logo do usuário aparece
+  if (vaga) fs.copyFileSync(vagaOrig, `${PASTA}/${vaga}`);
   await sharp(original).resize(480, 320, { fit: 'inside' }).webp({ quality: 90, alphaQuality: 100 }).toFile(`${PASTA}/${mini}`);
   const m = await sharp(original).metadata();
-  const itens = lerManifesto().filter((l) => l.id !== id);
-  itens.unshift({ id, nome, arquivo: nomeArq, mini, largura: m.width, altura: m.height, ...(fs.existsSync(limpa) ? { limpa: true } : {}), ...(frente ? { frente } : {}) });
+  const itens = lerManifesto();
+  const lugar = itens.findIndex((l) => l.id === id); // logo que já existe fica no mesmo lugar da galeria
+  itens.splice(lugar >= 0 ? lugar : 0, lugar >= 0 ? 1 : 0, { id, nome, arquivo: nomeArq, mini, largura: m.width, altura: m.height, ...(fs.existsSync(limpa) ? { limpa: true } : {}), ...(vaga ? { vaga } : {}) });
   escreverLista(itens);
   console.log(`ok ${id} ${m.width}x${m.height} — ${fs.existsSync(limpa) ? "o arquivo do dono só sem os dizeres de modelo" : "o mesmo arquivo que o dono mandou"} → ${PASTA}/${nomeArq}`);
 }
