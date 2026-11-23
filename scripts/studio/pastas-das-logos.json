@@ -1,10 +1,14 @@
 {
   "_leia": "F-355 (pedido do dono, 22/11/2026): a pasta de cada logo de promoção (ids das pastas em src/lib/studio/pastasDeLogos.ts). Logo nova: ponha o id dela na pasta certa e rode node scripts/studio/logos-de-promocao.mjs --lista.",
   "mercado": [
+    "ofertas-da-semana-verde",
+    "show-de-ofertas-luzes",
     "mega-oferta-roxa",
     "mega-oferta-vermelha",
     "mega-oferta-verde",
+    "melhor-preco-da-cidade",
     "mega-oferta-azul",
+    "inauguracao-nova-loja",
     "oferta-do-dia",
     "semana-das-ofertas",
     "ofertas-do-dia-verde",
@@ -55,6 +59,7 @@
     "black-friday-dados"
   ],
   "natal": [
+    "boas-festas",
     "saldao-de-natal",
     "natal-de-ofertas-vermelho",
     "natal-de-ofertas-verde",
@@ -79,9 +84,34 @@
     "mega-natal-de-ofertas-verde"
   ],
   "fim-de-ano": [
+    "esquenta-ano-novo",
+    "ano-2027-dourado",
+    "feliz-ano-novo-dourado",
+    "ano-novo-de-ofertas",
+    "ano-novo-imbativel",
+    "dezembro-arrasador",
+    "ano-novo-estrela",
+    "feliz-ano-novo-fita",
+    "liquidacao-de-ano-novo-preta",
+    "ano-novo-preco-novo-dourado",
+    "liquidacao-de-ano-novo-verde",
+    "saldao-de-ano-novo",
+    "fecha-mes-de-dezembro",
+    "ano-novo-preco-novo-vermelho",
     "ofertas-de-fim-de-ano"
   ],
   "sao-joao": [
     "arraia-de-ofertas"
+  ],
+  "dia-dos-pais": [
+    "ofertas-dia-dos-pais",
+    "feirao-do-paizao"
+  ],
+  "carnaval": [
+    "folia-da-economia",
+    "folia-de-ofertas"
+  ],
+  "pet": [
+    "preco-baixo-pet"
   ]
 }

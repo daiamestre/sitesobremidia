@@ -1,5 +1,198 @@
 [
   {
+    "id": "ano-novo-preco-novo-vermelho",
+    "nome": "Ano Novo Preço Novo (vermelho)",
+    "arquivo": "ano-novo-preco-novo-vermelho-c0bca16f.png",
+    "mini": "ano-novo-preco-novo-vermelho-c0bca16f-mini.webp",
+    "largura": 1232,
+    "altura": 1277
+  },
+  {
+    "id": "fecha-mes-de-dezembro",
+    "nome": "Fecha Mês de Dezembro",
+    "arquivo": "fecha-mes-de-dezembro-2cd23cb0.png",
+    "mini": "fecha-mes-de-dezembro-2cd23cb0-mini.webp",
+    "largura": 1382,
+    "altura": 1138
+  },
+  {
+    "id": "saldao-de-ano-novo",
+    "nome": "Saldão de Ano Novo",
+    "arquivo": "saldao-de-ano-novo-82318668.png",
+    "mini": "saldao-de-ano-novo-82318668-mini.webp",
+    "largura": 1214,
+    "altura": 1295
+  },
+  {
+    "id": "feirao-do-paizao",
+    "nome": "Feirão do Paizão",
+    "arquivo": "feirao-do-paizao-3c937c62.png",
+    "mini": "feirao-do-paizao-3c937c62-mini.webp",
+    "largura": 1229,
+    "altura": 1280
+  },
+  {
+    "id": "liquidacao-de-ano-novo-verde",
+    "nome": "Liquidação de Ano Novo (verde)",
+    "arquivo": "liquidacao-de-ano-novo-verde-e854a94b.png",
+    "mini": "liquidacao-de-ano-novo-verde-e854a94b-mini.webp",
+    "largura": 1237,
+    "altura": 1271
+  },
+  {
+    "id": "ano-novo-preco-novo-dourado",
+    "nome": "Ano Novo Preço Novo (dourado)",
+    "arquivo": "ano-novo-preco-novo-dourado-3031874a.png",
+    "mini": "ano-novo-preco-novo-dourado-3031874a-mini.webp",
+    "largura": 1238,
+    "altura": 1271
+  },
+  {
+    "id": "liquidacao-de-ano-novo-preta",
+    "nome": "Liquidação de Ano Novo (preta)",
+    "arquivo": "liquidacao-de-ano-novo-preta-d52589c8.png",
+    "mini": "liquidacao-de-ano-novo-preta-d52589c8-mini.webp",
+    "largura": 1199,
+    "altura": 1312
+  },
+  {
+    "id": "feliz-ano-novo-fita",
+    "nome": "Feliz Ano Novo (fita vermelha)",
+    "arquivo": "feliz-ano-novo-fita-659ad295.png",
+    "mini": "feliz-ano-novo-fita-659ad295-mini.webp",
+    "largura": 1221,
+    "altura": 1288,
+    "limpa": true
+  },
+  {
+    "id": "ano-novo-estrela",
+    "nome": "Ano Novo (estrela)",
+    "arquivo": "ano-novo-estrela-da54c8d4.png",
+    "mini": "ano-novo-estrela-da54c8d4-mini.webp",
+    "largura": 1231,
+    "altura": 1277
+  },
+  {
+    "id": "inauguracao-nova-loja",
+    "nome": "Inauguração Nova Loja",
+    "arquivo": "inauguracao-nova-loja-aa776352.png",
+    "mini": "inauguracao-nova-loja-aa776352-mini.webp",
+    "largura": 1225,
+    "altura": 1284
+  },
+  {
+    "id": "boas-festas",
+    "nome": "Boas Festas",
+    "arquivo": "boas-festas-914febcd.png",
+    "mini": "boas-festas-914febcd-mini.webp",
+    "largura": 1221,
+    "altura": 1289
+  },
+  {
+    "id": "dezembro-arrasador",
+    "nome": "Dezembro Arrasador",
+    "arquivo": "dezembro-arrasador-63e4a239.png",
+    "mini": "dezembro-arrasador-63e4a239-mini.webp",
+    "largura": 1672,
+    "altura": 941
+  },
+  {
+    "id": "ano-novo-imbativel",
+    "nome": "Ano Novo Imbatível",
+    "arquivo": "ano-novo-imbativel-1f6705a0.png",
+    "mini": "ano-novo-imbativel-1f6705a0-mini.webp",
+    "largura": 1227,
+    "altura": 1281
+  },
+  {
+    "id": "ano-novo-de-ofertas",
+    "nome": "Ano Novo de Ofertas",
+    "arquivo": "ano-novo-de-ofertas-751c2369.png",
+    "mini": "ano-novo-de-ofertas-751c2369-mini.webp",
+    "largura": 1230,
+    "altura": 1278
+  },
+  {
+    "id": "folia-de-ofertas",
+    "nome": "Folia de Ofertas",
+    "arquivo": "folia-de-ofertas-c10b4cb7.png",
+    "mini": "folia-de-ofertas-c10b4cb7-mini.webp",
+    "largura": 1812,
+    "altura": 868
+  },
+  {
+    "id": "ofertas-dia-dos-pais",
+    "nome": "Ofertas Dia dos Pais",
+    "arquivo": "ofertas-dia-dos-pais-6fd928c5.png",
+    "mini": "ofertas-dia-dos-pais-6fd928c5-mini.webp",
+    "largura": 1231,
+    "altura": 1278
+  },
+  {
+    "id": "preco-baixo-pet",
+    "nome": "Preço Baixo – Tudo para seu Pet",
+    "arquivo": "preco-baixo-pet-f875896e.png",
+    "mini": "preco-baixo-pet-f875896e-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "melhor-preco-da-cidade",
+    "nome": "Melhor Preço da Cidade",
+    "arquivo": "melhor-preco-da-cidade-53e5ded2.png",
+    "mini": "melhor-preco-da-cidade-53e5ded2-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "feliz-ano-novo-dourado",
+    "nome": "Feliz Ano Novo (dourado)",
+    "arquivo": "feliz-ano-novo-dourado-3a518c91.png",
+    "mini": "feliz-ano-novo-dourado-3a518c91-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "show-de-ofertas-luzes",
+    "nome": "Show de Ofertas (luzes)",
+    "arquivo": "show-de-ofertas-luzes-2804e5a1.png",
+    "mini": "show-de-ofertas-luzes-2804e5a1-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "ofertas-da-semana-verde",
+    "nome": "Ofertas da Semana (verde)",
+    "arquivo": "ofertas-da-semana-verde-ed9a6106.png",
+    "mini": "ofertas-da-semana-verde-ed9a6106-mini.webp",
+    "largura": 1213,
+    "altura": 1296
+  },
+  {
+    "id": "folia-da-economia",
+    "nome": "Folia da Economia",
+    "arquivo": "folia-da-economia-404d20c3.png",
+    "mini": "folia-da-economia-404d20c3-mini.webp",
+    "largura": 1436,
+    "altura": 1096
+  },
+  {
+    "id": "ano-2027-dourado",
+    "nome": "2027 (dourado)",
+    "arquivo": "ano-2027-dourado-85510240.png",
+    "mini": "ano-2027-dourado-85510240-mini.webp",
+    "largura": 1928,
+    "altura": 816
+  },
+  {
+    "id": "esquenta-ano-novo",
+    "nome": "Esquenta Ano Novo",
+    "arquivo": "esquenta-ano-novo-dec29f4b.png",
+    "mini": "esquenta-ano-novo-dec29f4b-mini.webp",
+    "largura": 1265,
+    "altura": 1244
+  },
+  {
     "id": "mega-oferta-azul",
     "nome": "Mega Oferta (azul)",
     "arquivo": "mega-oferta-azul-18e44190.png",

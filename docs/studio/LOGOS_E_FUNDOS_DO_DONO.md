@@ -88,41 +88,15 @@ Restrições gerais: senha nunca; segredos só em `~/.sobremidia-secrets/tokens.
 - **Pronto e não publicado (23/11):** as 4 Mega Oferta já passaram pela receita no PC (estão na lista local, com texto editável na faixa, conferidas no navegador com nomes de exemplo); falta só o commit + publicar junto com as outras.
 - **Pronto e não publicado:** zona `acento` da `feliz-ano-novo-fita` (versão limpa gerada e conferida: só o til saiu).
 
-## 6. Fila (recebidas, aguardando "adicione as logos") — 25 logos
+## 6. Fila — 28 logos PRONTAS no projeto (commit), esperando publicar
 
-Imagens em `../logos-de-promocao-originais/fila/<id>.png`. Caminho original de cada upload em `_fila-para-publicar.txt`.
+Situação em 23/11/2026: as 28 recebidas já passaram pela receita (estão em `public/studio/logos/promocao/` e na lista local, commitadas), com pasta, cores e as faixas editáveis prontas. **Falta só publicar** (`node scripts/ops/publicar-main.mjs --forcar`) quando o dono pedir ("publique"). O dono disse que vai continuar mandando: cada logo nova entra na fila (`_fila-para-publicar.txt` + `fila/<id>.png`) e passa pela receita do mesmo jeito.
 
-| # | id | Nome | Pasta | O que fazer antes de publicar |
-|---|---|---|---|---|
-| 1 | ano-novo-preco-novo-vermelho | Ano Novo Preço Novo (vermelho) | fim-de-ano | — |
-| 2 | fecha-mes-de-dezembro | Fecha Mês de Dezembro | fim-de-ano (dono confirmou) | — (faixa "DE DEZEMBRO" faz parte da frase: não muda) |
-| 3 | saldao-de-ano-novo | Saldão de Ano Novo | fim-de-ano | — (faixa "SALDÃO DE" faz parte da frase: não muda) |
-| 4 | feirao-do-paizao | Feirão do Paizão | dia-dos-pais | — |
-| 5 | liquidacao-de-ano-novo-verde | Liquidação de Ano Novo (verde) | fim-de-ano | placa branca vazia → texto editável |
-| 6 | ano-novo-preco-novo-dourado | Ano Novo Preço Novo (dourado) | fim-de-ano | — |
-| 7 | liquidacao-de-ano-novo-preta | Liquidação de Ano Novo (preta) | fim-de-ano | placa branca vazia → texto editável |
-| 8 | feliz-ano-novo-fita | Feliz Ano Novo (fita vermelha) | fim-de-ano | til do "Año" já tirado (zona `acento`, pronta); **fita vermelha em branco → texto editável** |
-| 9 | ano-novo-estrela | Ano Novo (estrela) | fim-de-ano | **fita branca em branco → texto editável** |
-| 10 | inauguracao-nova-loja | Inauguração Nova Loja | genérica (mercado + cor) | — |
-| 11 | boas-festas | Boas Festas | **natal** (dono, 23/11) | — |
-| 12 | dezembro-arrasador | Dezembro Arrasador | fim-de-ano | — |
-| 13 | ano-novo-imbativel | Ano Novo Imbatível | fim-de-ano | — (faixa "IMBATÍVEL" faz parte da frase: não muda) |
-| 14 | ano-novo-de-ofertas | Ano Novo de Ofertas | fim-de-ano | — (faixa "DE OFERTAS" faz parte da frase: não muda) |
-| 15 | folia-de-ofertas | Folia de Ofertas | carnaval | — (pandeiro fica como está) |
-| 16 | ofertas-dia-dos-pais | Ofertas Dia dos Pais | dia-dos-pais | — (faixa "DIA DOS" faz parte da frase: não muda) |
-| 17 | mega-oferta-azul | Mega Oferta (azul) | genérica | **PRONTA no PC (23/11), falta só publicar:** "YOUR TEXT HERE" tirado (zona `liso`), faixa com texto editável em arco, já na lista local |
-| 18 | preco-baixo-pet | Preço Baixo – Tudo para seu Pet | pet | — (faixa "Tudo para seu Pet" faz parte da frase: não muda) |
-| 19 | melhor-preco-da-cidade | Melhor Preço da Cidade | genérica | — (faixa "DA CIDADE" faz parte da frase: não muda) |
-| 20 | mega-oferta-verde | Mega Oferta (verde) | genérica | **PRONTA no PC (23/11), falta só publicar:** "YOUR TEXT HERE" tirado (zona `liso`), faixa com texto editável em arco, já na lista local |
-| 21 | mega-oferta-vermelha | Mega Oferta (vermelha) | genérica | **PRONTA no PC (23/11), falta só publicar:** "YOUR TEXT HERE" tirado (zona `liso`), faixa com texto editável em arco, já na lista local |
-| 22 | mega-oferta-roxa | Mega Oferta (roxa) | genérica | **PRONTA no PC (23/11), falta só publicar:** "YOUR TEXT HERE" tirado (zona `liso`), faixa com texto editável em arco, já na lista local |
-| 23 | feliz-ano-novo-dourado | Feliz Ano Novo (dourado) | fim-de-ano | — |
-| 24 | show-de-ofertas-luzes | Show de Ofertas (luzes) | genérica | diferente da "Show de Ofertas" já publicada |
-| 25 | ofertas-da-semana-verde | Ofertas da Semana (verde) | genérica | — (faixa "DA SEMANA" faz parte da frase: não muda) |
+- Editáveis da leva: Mega Oferta azul/verde/vermelha/roxa ("YOUR TEXT HERE" tirado), Liquidação de Ano Novo verde e preta (placa), Ano Novo (estrela) (fita branca), Feliz Ano Novo (fita vermelha, e o til do "Año" tirado).
+- Pastas: Boas Festas → natal; Fecha Mês de Dezembro, 2027 (dourado), Esquenta Ano Novo → fim-de-ano; Folia de Ofertas e Folia da Economia → carnaval; Feirão do Paizão e Ofertas Dia dos Pais → dia-dos-pais; Preço Baixo Pet → pet; genéricas (Inauguração Nova Loja, Melhor Preço da Cidade, Show de Ofertas luzes, Ofertas da Semana verde, 4 Mega Oferta) → mercado + pastas da cor.
+- Lista completa: `../logos-de-promocao-originais/_fila-para-publicar.txt`.
 
-**Editáveis nesta leva:** Liquidação de Ano Novo verde e preta (placa branca), Ano Novo (estrela) (fita branca), Feliz Ano Novo (fita vermelha) e as 4 Mega Oferta ("YOUR TEXT HERE" sai, faixa amarela/laranja vira texto). Faixas que já têm palavras da frase (DE OFERTAS, DA SEMANA…) não mudam.
-
-Contagem com a fila: Fim de Ano 13 (faltam 2), Natal 23 ✅, Açougue ✅, Dia dos Pais 2, Carnaval 1, **Dia das Mães 0 = próxima pasta da meta**. Pet, Beleza e Moda sobem com as genéricas (a conta exata sai ao medir as cores na publicação).
+**Meta (contagem com a fila, 23/11):** 10 de 21 pastas com 15+. Fim de Ano 15 ✅. Faltam: **Dia das Mães 0 (próxima)**, Dia dos Pais 2, São João 1, Carnaval 2, Beleza 2, Eletrônicos 5, Moda 3, Pet 13, Páscoa 0, Dia dos Namorados 0, Dia das Crianças 0.
 
 ## 7. Lições (erros que não podem voltar)
 
