@@ -1,5 +1,30 @@
 [
   {
+    "id": "saldao-de-verao",
+    "nome": "Saldão de Verão",
+    "arquivo": "saldao-de-verao-40885154.png",
+    "mini": "saldao-de-verao-40885154-mini.webp",
+    "largura": 1275,
+    "altura": 1233
+  },
+  {
+    "id": "ofertas-de-verao",
+    "nome": "Ofertas de Verão",
+    "arquivo": "ofertas-de-verao-fc94c29f.png",
+    "mini": "ofertas-de-verao-fc94c29f-mini.webp",
+    "largura": 1282,
+    "altura": 1227,
+    "limpa": true
+  },
+  {
+    "id": "ofertas-de-ano-novo-feliz-2027",
+    "nome": "Ofertas de Ano Novo (Feliz 2027)",
+    "arquivo": "ofertas-de-ano-novo-feliz-2027-25842baf.png",
+    "mini": "ofertas-de-ano-novo-feliz-2027-25842baf-mini.webp",
+    "largura": 1264,
+    "altura": 1244
+  },
+  {
     "id": "ofertas-ano-novo-baloes",
     "nome": "Ofertas Ano Novo (balões)",
     "arquivo": "ofertas-ano-novo-baloes-f6850800.png",

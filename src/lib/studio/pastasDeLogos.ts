@@ -23,6 +23,7 @@ export const PASTAS_DE_LOGOS: PastaDeLogo[] = [
   { id: 'eletronicos', nome: 'Eletrônicos', grupo: 'segmento', icone: '📱' },
   { id: 'moda', nome: 'Moda', grupo: 'segmento', icone: '👕' },
   // datas comemorativas (na ordem do ano)
+  { id: 'verao', nome: 'Verão', grupo: 'data', icone: '☀️' }, // 23/11/2026: Saldão/Ofertas de Verão do dono
   { id: 'carnaval', nome: 'Carnaval', grupo: 'data', icone: '🎭' },
   { id: 'pascoa', nome: 'Páscoa', grupo: 'data', icone: '🐰' },
   { id: 'dia-das-maes', nome: 'Dia das Mães', grupo: 'data', icone: '💐' },
@@ -64,7 +65,7 @@ export const logosDaPastaDe = (logos: LogoDaPasta[], pasta: string) => logos.fil
 export const META_DE_LOGOS_POR_PASTA = 15; // 23/11/2026: o dono subiu de 8 para 15 (depois talvez 20)
 export const ORDEM_DA_META = [
   'mercado', 'acougue', 'black-friday', 'natal', 'farmacia', 'padaria', 'dia-das-maes', 'dia-dos-pais', 'sao-joao', 'carnaval',
-  'hortifruti', 'adega', 'pet', 'beleza', 'suplementos', 'eletronicos', 'moda', 'pascoa', 'dia-dos-namorados', 'dia-das-criancas', 'fim-de-ano',
+  'hortifruti', 'adega', 'pet', 'beleza', 'suplementos', 'eletronicos', 'moda', 'pascoa', 'dia-dos-namorados', 'dia-das-criancas', 'fim-de-ano', 'verao',
 ];
 export interface ProgressoDaPasta { pasta: PastaDeLogo; tem: number; falta: number; completa: boolean }
 export function progressoDaMeta(logos: LogoDaPasta[]): { pastas: ProgressoDaPasta[]; completas: number; proxima: ProgressoDaPasta | null } {

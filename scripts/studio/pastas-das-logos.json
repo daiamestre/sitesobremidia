@@ -84,6 +84,7 @@
     "mega-natal-de-ofertas-verde"
   ],
   "fim-de-ano": [
+    "ofertas-de-ano-novo-feliz-2027",
     "ofertas-ano-novo-baloes",
     "reveillon-de-ofertas-relogio",
     "reveillon-de-ofertas-garrafas",
@@ -117,5 +118,9 @@
   ],
   "pet": [
     "preco-baixo-pet"
+  ],
+  "verao": [
+    "ofertas-de-verao",
+    "saldao-de-verao"
   ]
 }

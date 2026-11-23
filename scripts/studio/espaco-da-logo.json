@@ -36,5 +36,8 @@
   "reveillon-de-ofertas-relogio": { "_leia": "xadrez pintado do círculo do relógio sai (dono, 23/11/2026): vira o lugar OPCIONAL da logo do usuário", "zonas": [
     { "modo": "xadrez", "limites": [285, 190, 680, 480], "tons": [[198, 222], [244, 255]], "neutro": 14, "janela": 12, "minimo": 0.08, "pedaco": 150, "expandir": 6, "expNeutro": 52, "claroMin": 120, "vagaNeutro": 40, "forcar": [[290, 195, 600, 470]],
       "proteger": [[[290, 490], [430, 385], [560, 302], [690, 255], [690, 490]]] }
+  ] },
+  "ofertas-de-verao": { "_leia": "SUA LOGO AQUI sai da faixa branca (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
+    { "modo": "liso", "limites": [436, 898, 910, 1012], "letra": { "preto": 150 }, "crescer": 4, "proteger": [[[430, 890], [660, 890], [430, 935]], [[740, 1000], [915, 968], [915, 1020], [740, 1020]]] }
   ] }
 }

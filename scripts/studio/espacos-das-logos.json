@@ -55,5 +55,8 @@
   "reveillon-de-ofertas-relogio": {
     "textos": [],
     "logo": { "rotulo": "No relógio", "circulo": [450, 360, 168], "alvo": [326, 240, 140, 112] }
+  },
+  "ofertas-de-verao": {
+    "textos": [{ "id": "faixa", "rotulo": "Na faixa branca", "caixa": [440, 905, 470, 100], "giro": -7, "cor": "#111111", "degrade": ["#2a2a2a", "#000000"], "fonte": "montserrat", "peso": 900, "maxTamanho": 72 }]
   }
 }

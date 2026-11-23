@@ -239,7 +239,8 @@ for (const z of [...cfg.zonas].sort((a, b) => ordem(a) - ordem(b))) {
 
   if (z.modo === 'liso') {
     for (let y = by0; y < by1; y++) for (let x = bx0; x < bx1; x++) { const k = y * W + x; const r = data[k * 4], g = data[k * 4 + 1], b = data[k * 4 + 2]; const branca = z.letra.branco && Math.max(r, g, b) - Math.min(r, g, b) < z.letra.neutro && Math.min(r, g, b) > z.letra.branco; // letras brancas (YOUR TEXT HERE)
-      if (dentro(x, y) && (branca || (z.letra.vermelho != null && r - g > z.letra.vermelho && r - b > z.letra.vermelho))) M[k] = 1; }
+      const preta = z.letra.preto && Math.max(r, g, b) < z.letra.preto; // letras pretas (SUA LOGO AQUI)
+      if (dentro(x, y) && (branca || preta || (z.letra.vermelho != null && r - g > z.letra.vermelho && r - b > z.letra.vermelho))) M[k] = 1; }
     if (z.letra.espessura) { // brilho fino da faixa (1-3 px) não é letra: letra tem traço grosso na vertical
       const corrida = new Uint16Array(N);
       for (let x = bx0; x < bx1; x++) { let y = by0; while (y < by1) { if (!M[y * W + x]) { y++; continue; } let y2 = y; while (y2 < by1 && M[y2 * W + x]) y2++; for (let k = y; k < y2; k++) corrida[k * W + x] = y2 - y; y = y2; } }

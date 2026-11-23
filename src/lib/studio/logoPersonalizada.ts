@@ -37,6 +37,8 @@ export interface TextoDaLogo {
   entreLinhas?: number;
   /** F-358 (dono, 23/11/2026: "texto centralizado na faixa, não em cima da luz branca"): desce (px) o centro do texto em relação ao meio da curva */
   baixar?: number;
+  /** faixa reta INCLINADA (graus; negativo = sobe para a direita): o texto gira junto com a faixa, em volta do centro da caixa */
+  giro?: number;
 }
 export interface EspacoDaLogoDoUsuario {
   rotulo: string;
@@ -153,6 +155,7 @@ function escrever(ctx: CanvasRenderingContext2D, t: TextoDaLogo, valor: string) 
       naCurva(texto, r - sobe * (ajuste1 + desce), uma);
     }
   } else { // uma linha bem grande; se ficar pequena demais, duas linhas
+    if (t.giro) { ctx.translate(x + w / 2, y + h / 2); ctx.rotate((t.giro * Math.PI) / 180); ctx.translate(-(x + w / 2), -(y + h / 2)); }
     const medir = (s: string) => (tam: number) => { ctx.font = fonteCanvas(fonte, tam, peso); return ctx.measureText(s).width + (t.contorno?.largura ?? 0) * 2; };
     const teto = Math.min(t.maxTamanho ?? Infinity, h * 0.72);
     const uma = tamanhoQueCabe(medir(texto), w * 0.94, teto);
