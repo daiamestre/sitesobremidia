@@ -82,15 +82,14 @@ Restrições gerais: senha nunca; segredos só em `~/.sobremidia-secrets/tokens.
 
 ## 5. Situação em 23/11/2026
 
-- **No ar:** 68 logos de promoção, das quais 6 com espaços editáveis (Quarta das Carnes, Sexta da Carne brasa, Ofertas de Natal faixa, Natal de Ofertas gorro, Esquenta Black Friday laranja, Black Friday dados). 4 de 21 pastas com 15 ou mais.
+- **No ar:** 111 logos de promoção (as 43 da fila publicadas em 23/11; conferidas byte a byte contra o local). 10 de 22 pastas com 15 ou mais.
 - **Fundos no ar (F-357):** `black-friday-fita` e `black-friday-fita-selos` (texto BLACK FRIDAY das plaquinhas refeito, fitas intactas). O deitado é a arte no centro com laterais desfocadas, até o dono mandar a versão deitada.
 - **Revisão das 68 no ar (23/11):** conferidas uma a uma; só as 6 já editáveis têm faixa em branco ou dizer "your…". As outras faixas trazem palavras da frase (DE OFERTAS, VARIADOS, DESCONTOS IMPERDÍVEIS…) e ficam como estão.
-- **Pronto e não publicado (23/11):** as 4 Mega Oferta já passaram pela receita no PC (estão na lista local, com texto editável na faixa, conferidas no navegador com nomes de exemplo); falta só o commit + publicar junto com as outras.
-- **Pronto e não publicado:** zona `acento` da `feliz-ano-novo-fita` (versão limpa gerada e conferida: só o til saiu).
+- **Publicado em 23/11:** as 4 Mega Oferta (texto editável na faixa) e a zona `acento` da `feliz-ano-novo-fita` (só o til do "Año" saiu) entraram junto com o resto da fila.
 
 ## 6. Fila — 43 logos PUBLICADAS em 23/11/2026 (as próximas que chegarem entram aqui)
 
-Situação em 23/11/2026: as 43 recebidas já passaram pela receita (estão em `public/studio/logos/promocao/` e na lista local, commitadas), com pasta, cores e as faixas editáveis prontas. **Falta só publicar** (`node scripts/ops/publicar-main.mjs --forcar`) quando o dono pedir ("publique"). O dono disse que vai continuar mandando: cada logo nova entra na fila (`_fila-para-publicar.txt` + `fila/<id>.png`) e passa pela receita do mesmo jeito.
+Situação em 23/11/2026: as 43 recebidas passaram pela receita, foram commitadas e **PUBLICADAS** (`node scripts/ops/publicar-main.mjs`) — 111 logos no ar, conferidas byte a byte contra o local. Fila vazia. O dono disse que vai continuar mandando: cada logo nova entra na fila (`_fila-para-publicar.txt` + `fila/<id>.png`), passa pela receita do mesmo jeito e espera o próximo "publique".
 
 - Editáveis da leva: Mega Oferta azul/verde/vermelha/roxa ("YOUR TEXT HERE" tirado), Liquidação de Ano Novo verde e preta (placa), Ano Novo (estrela) (fita branca), Feliz Ano Novo (fita vermelha, e o til do "Año" tirado).
 - Novas (23/11): Ofertas Ano Novo (balões), Réveillon de Ofertas (garrafas), Ofertas de Ano Novo (verde) → fim-de-ano; **Réveillon de Ofertas (relógio)**: o xadrez pintado do relógio saiu (modo `xadrez` com `forcar` no círculo e `vagaNeutro` 40) e virou o lugar OPCIONAL da logo do usuário (`alvo` = maior retângulo que cabe inteiro no círculo branco).
