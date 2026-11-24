@@ -1,48 +1,1063 @@
 {
   "_leia": "F-355 (pedido do dono, 22/11/2026): só os dizeres de modelo saem ('YOUR LOGO HERE', 'SUA LOGO', 'ALPHA BACKGROUND' e o xadrez pintado). NADA do desenho é inventado: aro, disco e pano ficam. 'limites' = caixa onde a receita pode mexer; fora dela a logo é IDÊNTICA ao arquivo do dono (o teste logosDePromocao355 confere pixel a pixel). Medidas em pixels do arquivo do dono.",
-  "quarta-das-carnes": { "zonas": [
-    { "modo": "aro", "limites": [420, 0, 840, 160], "centro": [622, 220], "raios": [174, 211], "angulos": [-146, -25], "letra": { "lum": 95, "neutro": 28 }, "fonte": { "lumMax": 60, "neutro": 22 }, "crescer": 6, "crescerNeutro": 50, "crescerEscuro": 75, "beirada": 6,
-      "proteger": [[[380, 62], [444, 67], [539, 169], [528, 191], [472, 180], [370, 70]], [[828, 172], [900, 25], [1000, 25], [1000, 330], [780, 330]], [[730, 117], [850, 156], [850, 240], [730, 240]]] },
-    { "modo": "colunas", "limites": [550, 995, 795, 1210], "face": [671, 1102, 117, 101], "margem": 3, "caixaLetras": [565, 1032, 795, 1135], "folgaRestos": -12, "letra": { "lum": 165, "neutro": 70, "lumRestos": 95 }, "crescer": 20, "crescerRestos": 5, "alcance": 26, "veioMax": 40 }
-  ] },
-  "sexta-da-carne-brasa": { "zonas": [
-    { "modo": "aro", "limites": [880, 20, 1228, 260], "centro": [1046, 213], "raios": [143, 182], "angulos": [-101, 1], "faixaInteira": [144, 170], "letra": { "lum": 150, "neutro": 50 }, "fonte": { "vermelho": 110 }, "crescer": 3 },
-    { "modo": "xadrez", "limites": [840, 5, 1228, 420], "tons": [[222, 240], [246, 255]], "neutro": 24, "rosado": 10,
-      "proteger": [[[835, 321], [1042, 321], [1078, 331], [1106, 346], [1132, 374], [1165, 425], [835, 425]]] }
-  ] },
-  "natal-de-ofertas-gorro": { "zonas": [
-    { "modo": "liso", "limites": [415, 975, 885, 1110], "letra": { "vermelho": 14 }, "crescer": 8 }
-  ] },
-  "black-friday-dados": { "zonas": [
-    { "modo": "aro", "limites": [830, 40, 1342, 330], "centro": [1053, 308], "raios": [203, 246], "angulos": [-130, -12], "letra": { "lum": 110, "neutro": 40 }, "fonte": { "lumMax": 80, "neutro": 22 }, "crescer": 3 },
-    { "modo": "xadrez", "limites": [872, 40, 1342, 492], "tons": [[211, 217], [249, 255]], "neutro": 14, "janela": 18, "minimo": 0.04, "pedaco": 150, "expandir": 8, "expNeutro": 24, "claroMin": 170, "forcar": [[945, 212, 992, 240]] }
-  ] },
-  "feliz-ano-novo-fita": { "_leia": "pedido do dono 23/11/2026: 'Año' vira 'Ano' (só o til sai; o n fica pela curva medida)", "zonas": [
-    { "modo": "acento", "limites": [669, 352, 800, 427], "base": 423, "outraLetra": [800, 404], "crescer": 3,
-      "curva": [[669, 420], [672, 417], [676, 413], [680, 409.5], [684, 406.5], [688, 404], [692, 402], [696, 400.3], [700, 399], [705, 398], [710, 397.3], [716, 397], [722, 397], [728, 397.4], [733, 398.2], [738, 399.6], [743, 401.6], [748, 404.5], [753, 408.5], [757, 413.5], [760, 419], [762.5, 425], [764, 431], [765, 436]] }
-  ] },
-  "mega-oferta-azul": { "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
-    { "modo": "liso", "limites": [260, 930, 1040, 1140], "letra": { "branco": 120, "neutro": 60, "espessura": 7 }, "crescer": 8, "friso": 75, "aoLongo": { "busca": [880, 1180], "abaixo": 40, "margem": 3, "acima": 6, "uMin": 0.05, "topoPelasLetras": true, "uMax": 0.985, "frisos": { "x": [280, 354, 428, 502, 576, 650, 724, 798, 872, 946, 1020], "cima": [958.5, 968, 976, 981.5, 984.5, 985.5, 984.5, 980, 975, 966.5, 955], "baixo": [1087, 1102.5, 1113.5, 1120.5, 1124.5, 1125.5, 1124.5, 1120.5, 1113.5, 1102.5, 1086.5] } } }
-  ] },
-  "mega-oferta-verde": { "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
-    { "modo": "liso", "limites": [260, 920, 1030, 1130], "letra": { "branco": 120, "neutro": 60, "espessura": 7 }, "crescer": 8, "friso": 75, "aoLongo": { "busca": [880, 1180], "abaixo": 40, "margem": 3, "acima": 6, "uMin": 0.05, "topoPelasLetras": true, "uMax": 0.955, "frisos": { "x": [280, 354, 428, 502, 576, 650, 724, 798, 872, 946, 1020], "cima": [934.5, 946, 954, 959.5, 963, 964, 962, 958, 951.5, 941.5, 926.5], "baixo": [1060, 1076, 1086, 1093, 1097, 1097, 1095, 1090, 1081.5, 1069, 1049.5] } } }
-  ] },
-  "mega-oferta-vermelha": { "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
-    { "modo": "liso", "limites": [260, 890, 1040, 1080], "letra": { "branco": 120, "neutro": 60, "espessura": 7 }, "crescer": 8, "friso": 75, "aoLongo": { "busca": [880, 1180], "abaixo": 40, "margem": 3, "acima": 6, "uMin": 0.05, "topoPelasLetras": true, "uMax": 0.985, "frisos": { "x": [280, 354, 428, 502, 576, 650, 724, 798, 872, 946, 1020], "cima": [899, 910, 920, 927, 931, 932.5, 931.5, 929.5, 923, 913, 899.5], "baixo": [1018, 1037, 1049, 1057, 1061, 1061.5, 1059, 1054.5, 1047, 1035.5, 1017.5] } } }
-  ] },
-  "mega-oferta-roxa": { "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
-    { "modo": "liso", "limites": [260, 910, 1040, 1110], "letra": { "branco": 120, "neutro": 60, "espessura": 7 }, "crescer": 8, "friso": 75, "aoLongo": { "busca": [880, 1180], "abaixo": 40, "margem": 3, "acima": 6, "uMin": 0.05, "topoPelasLetras": true, "uMax": 0.985, "frisos": { "x": [280, 354, 428, 502, 576, 650, 724, 798, 872, 946, 1020], "cima": [924, 938, 947.5, 953, 956.5, 957, 956.5, 952.5, 945.5, 936.5, 922.5], "baixo": [1038.5, 1057, 1069, 1077, 1081.5, 1082.5, 1081, 1075.5, 1067.5, 1055, 1036.5] } } }
-  ] },
-  "reveillon-de-ofertas-relogio": { "_leia": "xadrez pintado do círculo do relógio sai (dono, 23/11/2026): vira o lugar OPCIONAL da logo do usuário", "zonas": [
-    { "modo": "xadrez", "limites": [285, 190, 680, 480], "tons": [[198, 222], [244, 255]], "neutro": 14, "janela": 12, "minimo": 0.08, "pedaco": 150, "expandir": 6, "expNeutro": 52, "claroMin": 120, "vagaNeutro": 40, "forcar": [[290, 195, 600, 470]],
-      "proteger": [[[290, 490], [430, 385], [560, 302], [690, 255], [690, 490]]] }
-  ] },
-  "ofertas-de-verao": { "_leia": "SUA LOGO AQUI sai da faixa branca (dono, 23/11/2026); a faixa vira texto editável", "zonas": [
-    { "modo": "liso", "limites": [436, 898, 910, 1012], "letra": { "preto": 150 }, "crescer": 4, "proteger": [[[430, 890], [660, 890], [430, 935]], [[740, 1000], [915, 968], [915, 1020], [740, 1020]]] }
-  ] },
-  "ofertas-fim-de-ano-baloes": { "_leia": "ALPHA BACKGROUND sai do aro preto e o xadrez vira o lugar OPCIONAL da logo do usuário (dono, 23/11/2026); os balões ficam", "zonas": [
-    { "modo": "aro", "limites": [950, 0, 1273, 200], "centro": [1118, 161], "raios": [118, 148], "angulos": [-152, -2], "letra": { "lum": 120, "neutro": 60 }, "fonte": { "lumMax": 70, "neutro": 22 }, "crescer": 3, "beirada": 4 },
-    { "modo": "xadrez", "limites": [990, 35, 1245, 300], "tons": [[212, 236], [239, 255]], "neutro": 10, "alfa": [8, 238], "porAlfa": 24, "circulo": [1118, 161, 118], "circuloTudo": true, "janela": 10, "minimo": 0.06, "pedaco": 150, "expandir": 0, "ilha": 400,
-      "proteger": [[[930, 150], [1000, 156], [1039, 169], [1063, 184], [1078, 199], [1085, 214], [1094, 229], [1096, 244], [1097, 260], [1097, 300], [930, 330]], [1040, 298, 1273, 340]] }
-  ] }
+  "quarta-das-carnes": {
+    "zonas": [
+      {
+        "modo": "aro",
+        "limites": [
+          420,
+          0,
+          840,
+          160
+        ],
+        "centro": [
+          622,
+          220
+        ],
+        "raios": [
+          174,
+          211
+        ],
+        "angulos": [
+          -146,
+          -25
+        ],
+        "letra": {
+          "lum": 95,
+          "neutro": 28
+        },
+        "fonte": {
+          "lumMax": 60,
+          "neutro": 22
+        },
+        "crescer": 6,
+        "crescerNeutro": 50,
+        "crescerEscuro": 75,
+        "beirada": 6,
+        "proteger": [
+          [
+            [
+              380,
+              62
+            ],
+            [
+              444,
+              67
+            ],
+            [
+              539,
+              169
+            ],
+            [
+              528,
+              191
+            ],
+            [
+              472,
+              180
+            ],
+            [
+              370,
+              70
+            ]
+          ],
+          [
+            [
+              828,
+              172
+            ],
+            [
+              900,
+              25
+            ],
+            [
+              1000,
+              25
+            ],
+            [
+              1000,
+              330
+            ],
+            [
+              780,
+              330
+            ]
+          ],
+          [
+            [
+              730,
+              117
+            ],
+            [
+              850,
+              156
+            ],
+            [
+              850,
+              240
+            ],
+            [
+              730,
+              240
+            ]
+          ]
+        ]
+      },
+      {
+        "modo": "colunas",
+        "limites": [
+          550,
+          995,
+          795,
+          1210
+        ],
+        "face": [
+          671,
+          1102,
+          117,
+          101
+        ],
+        "margem": 3,
+        "caixaLetras": [
+          565,
+          1032,
+          795,
+          1135
+        ],
+        "folgaRestos": -12,
+        "letra": {
+          "lum": 165,
+          "neutro": 70,
+          "lumRestos": 95
+        },
+        "crescer": 20,
+        "crescerRestos": 5,
+        "alcance": 26,
+        "veioMax": 40
+      }
+    ]
+  },
+  "sexta-da-carne-brasa": {
+    "zonas": [
+      {
+        "modo": "aro",
+        "limites": [
+          880,
+          20,
+          1228,
+          260
+        ],
+        "centro": [
+          1046,
+          213
+        ],
+        "raios": [
+          143,
+          182
+        ],
+        "angulos": [
+          -101,
+          1
+        ],
+        "faixaInteira": [
+          144,
+          170
+        ],
+        "letra": {
+          "lum": 150,
+          "neutro": 50
+        },
+        "fonte": {
+          "vermelho": 110
+        },
+        "crescer": 3
+      },
+      {
+        "modo": "xadrez",
+        "limites": [
+          840,
+          5,
+          1228,
+          420
+        ],
+        "tons": [
+          [
+            222,
+            240
+          ],
+          [
+            246,
+            255
+          ]
+        ],
+        "neutro": 24,
+        "rosado": 10,
+        "proteger": [
+          [
+            [
+              835,
+              321
+            ],
+            [
+              1042,
+              321
+            ],
+            [
+              1078,
+              331
+            ],
+            [
+              1106,
+              346
+            ],
+            [
+              1132,
+              374
+            ],
+            [
+              1165,
+              425
+            ],
+            [
+              835,
+              425
+            ]
+          ]
+        ]
+      }
+    ]
+  },
+  "natal-de-ofertas-gorro": {
+    "zonas": [
+      {
+        "modo": "liso",
+        "limites": [
+          415,
+          975,
+          885,
+          1110
+        ],
+        "letra": {
+          "vermelho": 14
+        },
+        "crescer": 8
+      }
+    ]
+  },
+  "black-friday-dados": {
+    "zonas": [
+      {
+        "modo": "aro",
+        "limites": [
+          830,
+          40,
+          1342,
+          330
+        ],
+        "centro": [
+          1053,
+          308
+        ],
+        "raios": [
+          203,
+          246
+        ],
+        "angulos": [
+          -130,
+          -12
+        ],
+        "letra": {
+          "lum": 110,
+          "neutro": 40
+        },
+        "fonte": {
+          "lumMax": 80,
+          "neutro": 22
+        },
+        "crescer": 3
+      },
+      {
+        "modo": "xadrez",
+        "limites": [
+          872,
+          40,
+          1342,
+          492
+        ],
+        "tons": [
+          [
+            211,
+            217
+          ],
+          [
+            249,
+            255
+          ]
+        ],
+        "neutro": 14,
+        "janela": 18,
+        "minimo": 0.04,
+        "pedaco": 150,
+        "expandir": 8,
+        "expNeutro": 24,
+        "claroMin": 170,
+        "forcar": [
+          [
+            945,
+            212,
+            992,
+            240
+          ]
+        ]
+      }
+    ]
+  },
+  "feliz-ano-novo-fita": {
+    "_leia": "pedido do dono 23/11/2026: 'Año' vira 'Ano' (só o til sai; o n fica pela curva medida)",
+    "zonas": [
+      {
+        "modo": "acento",
+        "limites": [
+          669,
+          352,
+          800,
+          427
+        ],
+        "base": 423,
+        "outraLetra": [
+          800,
+          404
+        ],
+        "crescer": 3,
+        "curva": [
+          [
+            669,
+            420
+          ],
+          [
+            672,
+            417
+          ],
+          [
+            676,
+            413
+          ],
+          [
+            680,
+            409.5
+          ],
+          [
+            684,
+            406.5
+          ],
+          [
+            688,
+            404
+          ],
+          [
+            692,
+            402
+          ],
+          [
+            696,
+            400.3
+          ],
+          [
+            700,
+            399
+          ],
+          [
+            705,
+            398
+          ],
+          [
+            710,
+            397.3
+          ],
+          [
+            716,
+            397
+          ],
+          [
+            722,
+            397
+          ],
+          [
+            728,
+            397.4
+          ],
+          [
+            733,
+            398.2
+          ],
+          [
+            738,
+            399.6
+          ],
+          [
+            743,
+            401.6
+          ],
+          [
+            748,
+            404.5
+          ],
+          [
+            753,
+            408.5
+          ],
+          [
+            757,
+            413.5
+          ],
+          [
+            760,
+            419
+          ],
+          [
+            762.5,
+            425
+          ],
+          [
+            764,
+            431
+          ],
+          [
+            765,
+            436
+          ]
+        ]
+      }
+    ]
+  },
+  "mega-oferta-azul": {
+    "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável",
+    "zonas": [
+      {
+        "modo": "liso",
+        "limites": [
+          260,
+          930,
+          1040,
+          1140
+        ],
+        "letra": {
+          "branco": 120,
+          "neutro": 60,
+          "espessura": 7
+        },
+        "crescer": 8,
+        "friso": 75,
+        "aoLongo": {
+          "busca": [
+            880,
+            1180
+          ],
+          "abaixo": 40,
+          "margem": 3,
+          "acima": 6,
+          "uMin": 0.05,
+          "topoPelasLetras": true,
+          "uMax": 0.985,
+          "frisos": {
+            "x": [
+              280,
+              354,
+              428,
+              502,
+              576,
+              650,
+              724,
+              798,
+              872,
+              946,
+              1020
+            ],
+            "cima": [
+              958.5,
+              968,
+              976,
+              981.5,
+              984.5,
+              985.5,
+              984.5,
+              980,
+              975,
+              966.5,
+              955
+            ],
+            "baixo": [
+              1087,
+              1102.5,
+              1113.5,
+              1120.5,
+              1124.5,
+              1125.5,
+              1124.5,
+              1120.5,
+              1113.5,
+              1102.5,
+              1086.5
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "mega-oferta-verde": {
+    "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável",
+    "zonas": [
+      {
+        "modo": "liso",
+        "limites": [
+          260,
+          920,
+          1030,
+          1130
+        ],
+        "letra": {
+          "branco": 120,
+          "neutro": 60,
+          "espessura": 7
+        },
+        "crescer": 8,
+        "friso": 75,
+        "aoLongo": {
+          "busca": [
+            880,
+            1180
+          ],
+          "abaixo": 40,
+          "margem": 3,
+          "acima": 6,
+          "uMin": 0.05,
+          "topoPelasLetras": true,
+          "uMax": 0.955,
+          "frisos": {
+            "x": [
+              280,
+              354,
+              428,
+              502,
+              576,
+              650,
+              724,
+              798,
+              872,
+              946,
+              1020
+            ],
+            "cima": [
+              934.5,
+              946,
+              954,
+              959.5,
+              963,
+              964,
+              962,
+              958,
+              951.5,
+              941.5,
+              926.5
+            ],
+            "baixo": [
+              1060,
+              1076,
+              1086,
+              1093,
+              1097,
+              1097,
+              1095,
+              1090,
+              1081.5,
+              1069,
+              1049.5
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "mega-oferta-vermelha": {
+    "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável",
+    "zonas": [
+      {
+        "modo": "liso",
+        "limites": [
+          260,
+          890,
+          1040,
+          1080
+        ],
+        "letra": {
+          "branco": 120,
+          "neutro": 60,
+          "espessura": 7
+        },
+        "crescer": 8,
+        "friso": 75,
+        "aoLongo": {
+          "busca": [
+            880,
+            1180
+          ],
+          "abaixo": 40,
+          "margem": 3,
+          "acima": 6,
+          "uMin": 0.05,
+          "topoPelasLetras": true,
+          "uMax": 0.985,
+          "frisos": {
+            "x": [
+              280,
+              354,
+              428,
+              502,
+              576,
+              650,
+              724,
+              798,
+              872,
+              946,
+              1020
+            ],
+            "cima": [
+              899,
+              910,
+              920,
+              927,
+              931,
+              932.5,
+              931.5,
+              929.5,
+              923,
+              913,
+              899.5
+            ],
+            "baixo": [
+              1018,
+              1037,
+              1049,
+              1057,
+              1061,
+              1061.5,
+              1059,
+              1054.5,
+              1047,
+              1035.5,
+              1017.5
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "mega-oferta-roxa": {
+    "_leia": "YOUR TEXT HERE sai da faixa laranja (dono, 23/11/2026); a faixa vira texto editável",
+    "zonas": [
+      {
+        "modo": "liso",
+        "limites": [
+          260,
+          910,
+          1040,
+          1110
+        ],
+        "letra": {
+          "branco": 120,
+          "neutro": 60,
+          "espessura": 7
+        },
+        "crescer": 8,
+        "friso": 75,
+        "aoLongo": {
+          "busca": [
+            880,
+            1180
+          ],
+          "abaixo": 40,
+          "margem": 3,
+          "acima": 6,
+          "uMin": 0.05,
+          "topoPelasLetras": true,
+          "uMax": 0.985,
+          "frisos": {
+            "x": [
+              280,
+              354,
+              428,
+              502,
+              576,
+              650,
+              724,
+              798,
+              872,
+              946,
+              1020
+            ],
+            "cima": [
+              924,
+              938,
+              947.5,
+              953,
+              956.5,
+              957,
+              956.5,
+              952.5,
+              945.5,
+              936.5,
+              922.5
+            ],
+            "baixo": [
+              1038.5,
+              1057,
+              1069,
+              1077,
+              1081.5,
+              1082.5,
+              1081,
+              1075.5,
+              1067.5,
+              1055,
+              1036.5
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "reveillon-de-ofertas-relogio": {
+    "_leia": "xadrez pintado do círculo do relógio sai (dono, 23/11/2026): vira o lugar OPCIONAL da logo do usuário",
+    "zonas": [
+      {
+        "modo": "xadrez",
+        "limites": [
+          285,
+          190,
+          680,
+          480
+        ],
+        "tons": [
+          [
+            198,
+            222
+          ],
+          [
+            244,
+            255
+          ]
+        ],
+        "neutro": 14,
+        "janela": 12,
+        "minimo": 0.08,
+        "pedaco": 150,
+        "expandir": 6,
+        "expNeutro": 52,
+        "claroMin": 120,
+        "vagaNeutro": 40,
+        "forcar": [
+          [
+            290,
+            195,
+            600,
+            470
+          ]
+        ],
+        "proteger": [
+          [
+            [
+              290,
+              490
+            ],
+            [
+              430,
+              385
+            ],
+            [
+              560,
+              302
+            ],
+            [
+              690,
+              255
+            ],
+            [
+              690,
+              490
+            ]
+          ]
+        ]
+      }
+    ]
+  },
+  "ofertas-de-verao": {
+    "_leia": "SUA LOGO AQUI sai da faixa branca (dono, 23/11/2026); a faixa vira texto editável",
+    "zonas": [
+      {
+        "modo": "liso",
+        "limites": [
+          436,
+          898,
+          910,
+          1012
+        ],
+        "letra": {
+          "preto": 150
+        },
+        "crescer": 4,
+        "proteger": [
+          [
+            [
+              430,
+              890
+            ],
+            [
+              660,
+              890
+            ],
+            [
+              430,
+              935
+            ]
+          ],
+          [
+            [
+              740,
+              1000
+            ],
+            [
+              915,
+              968
+            ],
+            [
+              915,
+              1020
+            ],
+            [
+              740,
+              1020
+            ]
+          ]
+        ]
+      }
+    ]
+  },
+  "ofertas-fim-de-ano-baloes": {
+    "_leia": "ALPHA BACKGROUND sai do aro preto e o xadrez vira o lugar OPCIONAL da logo do usuário (dono, 23/11/2026); os balões ficam",
+    "zonas": [
+      {
+        "modo": "aro",
+        "limites": [
+          950,
+          0,
+          1273,
+          200
+        ],
+        "centro": [
+          1118,
+          161
+        ],
+        "raios": [
+          118,
+          148
+        ],
+        "angulos": [
+          -152,
+          -2
+        ],
+        "letra": {
+          "lum": 120,
+          "neutro": 60
+        },
+        "fonte": {
+          "lumMax": 70,
+          "neutro": 22
+        },
+        "crescer": 3,
+        "beirada": 4
+      },
+      {
+        "modo": "xadrez",
+        "limites": [
+          990,
+          35,
+          1245,
+          300
+        ],
+        "tons": [
+          [
+            212,
+            236
+          ],
+          [
+            239,
+            255
+          ]
+        ],
+        "neutro": 10,
+        "alfa": [
+          8,
+          238
+        ],
+        "porAlfa": 24,
+        "circulo": [
+          1118,
+          161,
+          118
+        ],
+        "circuloTudo": true,
+        "janela": 10,
+        "minimo": 0.06,
+        "pedaco": 150,
+        "expandir": 0,
+        "ilha": 400,
+        "proteger": [
+          [
+            [
+              930,
+              150
+            ],
+            [
+              1000,
+              156
+            ],
+            [
+              1039,
+              169
+            ],
+            [
+              1063,
+              184
+            ],
+            [
+              1078,
+              199
+            ],
+            [
+              1085,
+              214
+            ],
+            [
+              1094,
+              229
+            ],
+            [
+              1096,
+              244
+            ],
+            [
+              1097,
+              260
+            ],
+            [
+              1097,
+              300
+            ],
+            [
+              930,
+              330
+            ]
+          ],
+          [
+            1040,
+            298,
+            1273,
+            340
+          ]
+        ]
+      }
+    ]
+  },
+  "carnaval-conectado": {
+    "_leia": "YOUR LOGO HERE! sai da placa dourada pendurada (regra do dono: your… sempre apagado); a placa vira texto editável",
+    "zonas": [
+      {
+        "modo": "liso",
+        "limites": [
+          580,
+          866,
+          992,
+          958
+        ],
+        "letra": {
+          "preto": 150
+        },
+        "crescer": 8,
+        "proteger": [
+          [
+            [
+              579,
+              865
+            ],
+            [
+              591,
+              865
+            ],
+            [
+              591,
+              877
+            ],
+            [
+              579,
+              877
+            ]
+          ],
+          [
+            [
+              977,
+              866
+            ],
+            [
+              989,
+              866
+            ],
+            [
+              989,
+              878
+            ],
+            [
+              977,
+              878
+            ]
+          ],
+          [
+            [
+              579,
+              938
+            ],
+            [
+              591,
+              938
+            ],
+            [
+              591,
+              950
+            ],
+            [
+              579,
+              950
+            ]
+          ],
+          [
+            [
+              977,
+              939
+            ],
+            [
+              989,
+              939
+            ],
+            [
+              989,
+              951
+            ],
+            [
+              977,
+              951
+            ]
+          ]
+        ]
+      }
+    ]
+  }
 }

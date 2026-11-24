@@ -1,5 +1,94 @@
 [
   {
+    "id": "oferta-da-virada-50-off",
+    "nome": "Oferta da Virada 50% OFF",
+    "arquivo": "oferta-da-virada-50-off-0a7435a4.png",
+    "mini": "oferta-da-virada-50-off-0a7435a4-mini.webp",
+    "largura": 1708,
+    "altura": 921
+  },
+  {
+    "id": "ofertas-da-virada-relogio",
+    "nome": "Ofertas da Virada (relógio)",
+    "arquivo": "ofertas-da-virada-relogio-dd1697d9.png",
+    "mini": "ofertas-da-virada-relogio-dd1697d9-mini.webp",
+    "largura": 1313,
+    "altura": 1198
+  },
+  {
+    "id": "saldao-de-ano-novo-faixa",
+    "nome": "Saldão de Ano Novo (fita dourada)",
+    "arquivo": "saldao-de-ano-novo-faixa-09745aa3.png",
+    "mini": "saldao-de-ano-novo-faixa-09745aa3-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "ano-novo-relogio-faixa",
+    "nome": "Ano Novo (relógio e fita)",
+    "arquivo": "ano-novo-relogio-faixa-cbbb4b97.png",
+    "mini": "ano-novo-relogio-faixa-cbbb4b97-mini.webp",
+    "largura": 1231,
+    "altura": 1277
+  },
+  {
+    "id": "mes-das-maes",
+    "nome": "Mês das Mães",
+    "arquivo": "mes-das-maes-49edaf6b.png",
+    "mini": "mes-das-maes-49edaf6b-mini.webp",
+    "largura": 1272,
+    "altura": 1237
+  },
+  {
+    "id": "ano-novo-de-ofertas-laranja",
+    "nome": "Ano Novo de Ofertas (laranja)",
+    "arquivo": "ano-novo-de-ofertas-laranja-818faedd.png",
+    "mini": "ano-novo-de-ofertas-laranja-818faedd-mini.webp",
+    "largura": 1296,
+    "altura": 1213
+  },
+  {
+    "id": "ofertas-dia-das-maes",
+    "nome": "Ofertas Dia das Mães",
+    "arquivo": "ofertas-dia-das-maes-e5c772f3.png",
+    "mini": "ofertas-dia-das-maes-e5c772f3-mini.webp",
+    "largura": 1312,
+    "altura": 1199
+  },
+  {
+    "id": "carnaval-de-ofertas-dourado",
+    "nome": "Carnaval de Ofertas (dourado)",
+    "arquivo": "carnaval-de-ofertas-dourado-35893492.png",
+    "mini": "carnaval-de-ofertas-dourado-35893492-mini.webp",
+    "largura": 1794,
+    "altura": 877
+  },
+  {
+    "id": "carnaval-de-ofertas-colorido",
+    "nome": "Carnaval de Ofertas (colorido)",
+    "arquivo": "carnaval-de-ofertas-colorido-ee70f632.png",
+    "mini": "carnaval-de-ofertas-colorido-ee70f632-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "carnaval-de-ofertas-mascara",
+    "nome": "Carnaval de Ofertas (máscara)",
+    "arquivo": "carnaval-de-ofertas-mascara-0d6ef568.png",
+    "mini": "carnaval-de-ofertas-mascara-0d6ef568-mini.webp",
+    "largura": 1536,
+    "altura": 1024
+  },
+  {
+    "id": "carnaval-conectado",
+    "nome": "Carnaval Conectado",
+    "arquivo": "carnaval-conectado-fcf141e0.png",
+    "mini": "carnaval-conectado-fcf141e0-mini.webp",
+    "largura": 1536,
+    "altura": 1024,
+    "limpa": true
+  },
+  {
     "id": "carnaval-de-ofertas-vermelho",
     "nome": "Carnaval de Ofertas (vermelho)",
     "arquivo": "carnaval-de-ofertas-vermelho-7fc9a6be.png",

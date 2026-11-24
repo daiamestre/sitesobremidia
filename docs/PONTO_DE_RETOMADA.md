@@ -7,7 +7,7 @@
 > exato para a próxima conversa. O comando `node scripts/ops/onde-paramos.mjs` mostra este arquivo no topo, e o projeto
 > roda esse comando sozinho quando uma conversa nova do Claude Code começa (`.claude/settings.json`, gancho SessionStart).
 
-Atualizado em: **23/11/2026** · Assunto em andamento: **Logos de promoção do dono (P-36, F-355..F-358)**
+Atualizado em: **24/11/2026** · Assunto em andamento: **Logos de promoção do dono (P-36, F-355..F-358)**
 
 ## 0. O que já foi feito (contexto completo)
 Resumo, em ordem, de tudo o que fizemos e como: `docs/historico/` (última: `CONVERSA_LOGOS_E_FUNDOS_2026-11-20_a_24.md`). Ler antes de continuar.
@@ -19,8 +19,8 @@ faixa editável, logo do cliente opcional) e commitada. **Publicar no site só q
 
 ## 2. Situação exata
 - **23/11/2026: as 43 logos da fila foram PUBLICADAS** (commit 92c9b98 enviado ao main; a Vercel publica do main). No ar: 111 logos de promoção.
-- A fila agora está vazia de pendências: logos novas que o dono mandar entram nela (`../logos-de-promocao-originais/_fila-para-publicar.txt` + `fila/<id>.png`), passam pela receita, são commitadas e esperam o próximo "publique".
-- Meta: 15 logos por pasta, **10 de 22 pastas completas**, próxima **Dia das Mães (0)**. Pasta ☀️ Verão criada em 23/11.
+- **24/11/2026: 11 logos NOVAS NA FILA (3 levas), tratadas e commitadas, AGUARDANDO "publique"**: Carnaval Conectado ("YOUR LOGO HERE!" tirado da placa dourada → texto editável, fonte Oswald verde), Carnaval de Ofertas (máscara), (colorido) e (dourado) → carnaval; Ofertas Dia das Mães → dia-das-maes (a arte escreve "maes" sem til: só corrigir se o dono mandar). 2ª leva: Ano Novo de Ofertas (laranja, faixa da frase não muda) e Ano Novo (relógio e fita vermelha EM BRANCO → texto editável em arco) e Saldão de Ano Novo (fita dourada EM BRANCO → texto editável em arco, letra marrom) → fim-de-ano; Mês das Mães → dia-das-maes. 3ª leva: Ofertas da Virada (relógio) e Oferta da Virada 50% OFF → fim-de-ano, iguais às originais. Logos novas que o dono mandar entram na mesma fila (`../logos-de-promocao-originais/_fila-para-publicar.txt` + `fila/<id>.png`).
+- Meta (contando a fila): 15 logos por pasta, **10 de 22 pastas completas**, próxima **Dia das Mães (2)**; Carnaval 10; Fim de Ano 28. Pasta ☀️ Verão criada em 23/11.
 
 ## 3. Próximo passo (faça assim, sem perguntar)
 **Se o dono pedir para publicar as logos guardadas (as que entrarem depois de 23/11):**

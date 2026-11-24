@@ -165,11 +165,18 @@ function escrever(ctx: CanvasRenderingContext2D, t: TextoDaLogo, valor: string) 
     const meiaR = (sz: number) => (partes ? Math.max((t.entreLinhas ?? 0.5) * sz, (altoR(partes[0], sz)[1] + altoR(partes[1], sz)[0]) / 2 + 0.08 * sz) : 0);
     const blocoR = (sz: number) => (partes ? 2 * meiaR(sz) + altoR(partes[0], sz)[0] + altoR(partes[1], sz)[1] : 0);
     const duas = partes ? tamanhoQueCabe((sz) => Math.max(medir(partes[0])(sz) / (w * 0.94), medir(partes[1])(sz) / (w * 0.94), blocoR(sz) / ((t.alturaUtil ?? h) * 0.92)), 1, h * 0.6) : 0;
+    // F-358 (dono, 24/11/2026): placa medida (com alturaUtil) centraliza pelo CORPO das letras (sem acento nem cedilha), como a faixa em arco;
+    // as placas antigas (sem alturaUtil) ficam como estavam
+    const corpoR = (s: string) => (t.alturaUtil ? s.normalize('NFD').replace(/[̀-ͯ]/g, '') : s);
     if (partes && duas > uma * 1.15) {
       ctx.font = fonteCanvas(fonte, duas, peso);
-      const c0 = y + h / 2 - meiaR(duas) + (altoR(partes[0], duas)[0] - altoR(partes[1], duas)[1]) / 2; // bloco no meio da placa
+      const c0 = y + h / 2 - meiaR(duas) + (altoR(corpoR(partes[0]), duas)[0] - altoR(corpoR(partes[1]), duas)[1]) / 2; // bloco no meio da placa
       tracar(partes[0], x + w / 2, c0, duas); tracar(partes[1], x + w / 2, c0 + 2 * meiaR(duas), duas);
-    } else { ctx.font = fonteCanvas(fonte, uma, peso); tracar(texto, x + w / 2, y + h / 2, uma); }
+    } else {
+      ctx.font = fonteCanvas(fonte, uma, peso);
+      const [a1, d1] = altoR(corpoR(texto), uma);
+      tracar(texto, x + w / 2, y + h / 2 + (t.alturaUtil ? (a1 - d1) / 2 : 0), uma);
+    }
   }
   ctx.restore();
 }

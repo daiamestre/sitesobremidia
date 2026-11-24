@@ -85,6 +85,11 @@
     "mega-natal-de-ofertas-verde"
   ],
   "fim-de-ano": [
+    "oferta-da-virada-50-off",
+    "ofertas-da-virada-relogio",
+    "saldao-de-ano-novo-faixa",
+    "ano-novo-relogio-faixa",
+    "ano-novo-de-ofertas-laranja",
     "ofertas-de-ano-novo-letreiro-vermelho",
     "ofertas-de-ano-novo-letreiro-preto",
     "ofertas-fim-de-ano-baloes",
@@ -117,6 +122,10 @@
     "feirao-do-paizao"
   ],
   "carnaval": [
+    "carnaval-conectado",
+    "carnaval-de-ofertas-mascara",
+    "carnaval-de-ofertas-colorido",
+    "carnaval-de-ofertas-dourado",
     "carnaval-de-ofertas-vermelho",
     "carnaval-de-ofertas-verde",
     "carnaval-de-ofertas-azul",
@@ -130,5 +139,9 @@
   "verao": [
     "ofertas-de-verao",
     "saldao-de-verao"
+  ],
+  "dia-das-maes": [
+    "mes-das-maes",
+    "ofertas-dia-das-maes"
   ]
 }
