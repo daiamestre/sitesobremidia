@@ -1,5 +1,38 @@
 [
   {
+    "id": "liquida-ano-novo-dourado",
+    "nome": "Liquida Ano Novo",
+    "arquivo": "liquida-ano-novo-dourado-2fb1df10.png",
+    "mini": "liquida-ano-novo-dourado-2fb1df10-mini.webp",
+    "largura": 1469,
+    "altura": 1071,
+    "limpa": true
+  },
+  {
+    "id": "black-friday-etiqueta-pendurada-vermelho",
+    "nome": "Black Friday (etiqueta pendurada)",
+    "arquivo": "black-friday-etiqueta-pendurada-vermelho-860086f1.png",
+    "mini": "black-friday-etiqueta-pendurada-vermelho-860086f1-mini.webp",
+    "largura": 1024,
+    "altura": 1536
+  },
+  {
+    "id": "black-friday-etiqueta-vermelho",
+    "nome": "Black Friday (etiqueta)",
+    "arquivo": "black-friday-etiqueta-vermelho-10a01f2f.png",
+    "mini": "black-friday-etiqueta-vermelho-10a01f2f-mini.webp",
+    "largura": 1024,
+    "altura": 1536
+  },
+  {
+    "id": "oferta-da-virada-50-off-vermelho",
+    "nome": "Oferta da Virada 50% OFF (vermelha)",
+    "arquivo": "oferta-da-virada-50-off-vermelho-57e033d9.png",
+    "mini": "oferta-da-virada-50-off-vermelho-57e033d9-mini.webp",
+    "largura": 1702,
+    "altura": 924
+  },
+  {
     "id": "oferta-da-virada-50-off",
     "nome": "Oferta da Virada 50% OFF",
     "arquivo": "oferta-da-virada-50-off-0a7435a4.png",

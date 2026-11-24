@@ -1059,5 +1059,26 @@
         ]
       }
     ]
+  },
+  "liquida-ano-novo-dourado": {
+    "_leia": "SEU LOGO AQUI sai da placa marrom (regra do dono: dizer de modelo sempre apagado); a placa vira texto editável",
+    "zonas": [
+      {
+        "modo": "liso",
+        "limites": [
+          462,
+          866,
+          1030,
+          968
+        ],
+        "letra": {
+          "branco": 150,
+          "neutro": 60,
+          "espessura": 5,
+          "preto": 112
+        },
+        "crescer": 14
+      }
+    ]
   }
 }
