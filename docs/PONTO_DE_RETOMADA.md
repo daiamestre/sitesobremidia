@@ -28,7 +28,7 @@ faixa editável, logo do cliente opcional) e commitada. **Publicar no site só q
    os bytes com o arquivo local; abrir a página Logos no navegador com a conta de teste (skill `conferir-painel`).
 5. Atualizar este arquivo (seção 2: "publicadas em DD/MM"), `docs/ESTADO_DO_SISTEMA.md` (P-36) e o manual das logos.
 
-**Se o dono mandar mais logos:** seguir a seção 1 do manual (`docs/studio/LOGOS_E_FUNDOS_DO_DONO.md`): conferir fundo
+**Se o dono mandar mais logos:** seguir o PASSO A PASSO da seção 9 do manual (análise, fila, apagar dizeres, faixa editável, logo do cliente, teste, resposta) e a seção 1 (`docs/studio/LOGOS_E_FUNDOS_DO_DONO.md`): conferir fundo
 transparente e repetição → guardar na fila → receita → faixa em branco ou "your…" vira editável (texto centralizado, dentro
 das listras, no estilo da faixa) → conferir lado a lado (`scripts/studio/conferir-logo.mjs`) → testes → commit → responder
 com a pasta, o que ficou editável e a contagem da meta (próxima pasta).

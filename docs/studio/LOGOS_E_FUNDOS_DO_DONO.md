@@ -99,7 +99,7 @@ Situação em 23/11/2026: as 43 recebidas passaram pela receita, foram commitada
 - Pastas: Boas Festas → natal; Fecha Mês de Dezembro, 2027 (dourado), Esquenta Ano Novo → fim-de-ano; Folia de Ofertas e Folia da Economia → carnaval; Feirão do Paizão e Ofertas Dia dos Pais → dia-dos-pais; Preço Baixo Pet → pet; genéricas (Inauguração Nova Loja, Melhor Preço da Cidade, Show de Ofertas luzes, Ofertas da Semana verde, 4 Mega Oferta) → mercado + pastas da cor.
 - Lista completa: `../logos-de-promocao-originais/_fila-para-publicar.txt`.
 
-**Meta (contagem com a fila, 23/11):** 10 de 21 pastas com 15+. Fim de Ano 19 ✅. Faltam: **Dia das Mães 0 (próxima)**, Dia dos Pais 2, São João 1, Carnaval 2, Beleza 2, Eletrônicos 5, Moda 3, Pet 13, Páscoa 0, Dia dos Namorados 0, Dia das Crianças 0.
+**Meta (23/11, depois da publicação):** 10 de 22 pastas com 15+ (Verão é nova). Fim de Ano 23 ✅. Faltam: **Dia das Mães 0 (próxima)**, Dia dos Pais 2, São João 1, Carnaval 6, Verão 2, Beleza, Moda, Eletrônicos, Pet, Páscoa 0, Dia dos Namorados 0, Dia das Crianças 0. Conta exata: passo 9.7.
 
 ## 7. Lições (erros que não podem voltar)
 
@@ -118,3 +118,83 @@ Situação em 23/11/2026: as 43 recebidas passaram pela receita, foram commitada
 2. Botão da Saldão de Natal (já no ar): lugar da logo do usuário ou enfeite? (o pandeiro da Folia fica como está)
 3. Círculo branco quando o usuário não põe logo: deixar ou sumir?
 4. Versão deitada (16:9) dos dois fundos de Black Friday.
+
+## 9. PASSO A PASSO DE CADA LOGO (exatamente como fizemos na conversa de 20–23/11/2026)
+
+> Siga na ordem, para CADA logo que o dono mandar. Não publique nada até ele dizer "publique" / "adicione as logos".
+
+### 9.1 Receber e analisar (antes de qualquer coisa)
+1. As imagens que o dono manda no chat ficam salvas em `C:\Users\Jairan Santos\.claude\uploads\<sessão>\<id>-image.png` (o caminho vem na mensagem).
+2. Medir cada uma (tamanho e transparência), na raiz do projeto:
+   ```
+   node -e "const sharp=require('sharp');(async()=>{const p='<arquivo>';const m=await sharp(p).metadata();const {data}=await sharp(p).ensureAlpha().raw().toBuffer({resolveWithObject:true});let t=0;for(let i=3;i<data.length;i+=4)if(data[i]<20)t++;console.log(m.width,m.height,'transp',(t/(data.length/4)*100).toFixed(0)+'%')})()"
+   ```
+   - Transparência 0% = fundo pintado: avisar o dono (a logo entra igual, mas com fundo).
+   - Ver se já existe: `ls public/studio/logos/promocao | grep -i <palavra>` e `grep -i <palavra> ../logos-de-promocao-originais/_fila-para-publicar.txt`.
+3. Olhar a imagem e classificar CADA faixa, placa ou círculo:
+
+   | O que tem | O que fazer |
+   |---|---|
+   | Faixa/placa EM BRANCO (vazia) | vira TEXTO EDITÁVEL (9.4), sempre, sem perguntar |
+   | Faixa com "YOUR TEXT HERE", "YOUR LOGO", "SUA LOGO AQUI" | apagar SÓ o dizer (9.3) e a faixa vira TEXTO EDITÁVEL (9.4) |
+   | Círculo com xadrez ou "ALPHA BACKGROUND" | apagar dizer e xadrez (9.3); o espaço vira LOGO DO CLIENTE OPCIONAL (9.5) |
+   | Faixa com palavras da frase ("DE OFERTAS", "DA SEMANA", "FELIZ 2027") | NÃO MUDA |
+   | Texto errado na arte (ex.: "Año") | só corrige se o dono mandar (modo `acento`) |
+
+4. Escolher a pasta: segmento ou data pelo tema. Logo sem segmento = genérica, vai em `mercado` (o sistema põe nas pastas da cor sozinho). Tema sem pasta (ex.: Verão) = criar a pasta em `PASTAS_DE_LOGOS` e `ORDEM_DA_META` (`src/lib/studio/pastasDeLogos.ts`) e avisar o dono.
+
+### 9.2 Guardar na fila
+- Acrescentar a linha `<caminho do upload> | <id-kebab> | <Nome> | <pasta>[ | notas]` em `../logos-de-promocao-originais/_fila-para-publicar.txt`.
+- Copiar o arquivo para `../logos-de-promocao-originais/fila/<id>.png`.
+- Pôr o id no topo da pasta certa em `scripts/studio/pastas-das-logos.json`.
+
+### 9.3 Apagar dizeres de modelo (só quando houver)
+1. Copiar `fila/<id>.png` para `../logos-de-promocao-originais/<id>.png`.
+2. Medir com grade: `PASSO=25 node scripts/studio/conferir-logo.mjs grade <arquivo> <saida.png> x y w h` e abrir a imagem.
+3. Escrever a zona em `scripts/studio/espaco-da-logo.json`. Exemplos REAIS que funcionaram (copie a entrada da logo citada e ajuste):
+   - Letras brancas numa faixa curva com brilho e frisos → `mega-oferta-azul` (modo `liso` com `aoLongo` e os `frisos` medidos).
+   - Letras pretas numa faixa branca inclinada → `ofertas-de-verao` (modo `liso` com `letra.preto` e `proteger` nas bordas).
+   - Letras num aro preto ("ALPHA BACKGROUND") → `ofertas-fim-de-ano-baloes`, 1ª zona (modo `aro` com `beirada`; NUNCA `faixaInteira` em aro preto).
+   - Xadrez opaco num círculo → `reveillon-de-ofertas-relogio` (modo `xadrez` com `forcar` e `vagaNeutro`).
+   - Xadrez MEIO TRANSPARENTE (vidro) → `ofertas-fim-de-ano-baloes`, 2ª zona (`alfa`, `porAlfa`, `circulo`, `circuloTudo` e `proteger` com a borda medida do balão da frente).
+   - Acento a tirar → `feliz-ano-novo-fita` (modo `acento` com a `curva` de cima da letra).
+   - Xadrez + letras em aro colorido → `sexta-da-carne-brasa` e `black-friday-dados`.
+4. Rodar e conferir até não sobrar falha:
+   - `node scripts/studio/espaco-da-logo.mjs <id>`
+   - `node scripts/studio/conferir-logo.mjs zonas <id> <saida.png>` (original | limpa | o que mudou; "furos" TEM de ser 0)
+   - `node scripts/studio/conferir-logo.mjs lado ../logos-de-promocao-originais/<id>.png ../logos-de-promocao-originais/<id>-limpa-<hash>.png <saida.png> x y w h 2`
+   - Olhar AMPLIADO: faixa igual à original (mesma cor, brilho e frisos), sem sombra de letra, sem degrau, sem emenda, sem buraco. Repetir até ficar perfeito e mandar o antes e depois ao dono.
+   - Medir frisos de faixa curva: para x = 280, 354, … 1020, listar os trechos vermelho-escuros (g < 75 e r − g > 60); o friso de cima e o de baixo são os trechos finos (≤ 7 px) logo acima e logo abaixo das letras.
+
+### 9.4 Texto editável na faixa (`scripts/studio/espacos-das-logos.json`)
+- Faixa curva: medir o meio da faixa em 3 pontos (esquerda, meio, direita) e calcular o círculo que passa por eles → `"arco": { "cx", "cy", "r", "de", "ate", "baixo": true }` (baixo = curva de sorriso), com ~1° de margem em cada ponta. Exemplos: `mega-oferta-*`, `ano-novo-estrela`, `feliz-ano-novo-fita`.
+- Faixa reta inclinada: `"caixa": [x,y,w,h], "giro": -7`. Exemplo: `ofertas-de-verao`.
+- Placa reta: só `"caixa"`. Exemplos: `liquidacao-de-ano-novo-verde` e `-preta`.
+- Sempre: `"alturaUtil"` = altura entre as listras − 24 px (o texto, com acento e Ç, nunca passa das listras), `"entreLinhas": 0.42` (2 linhas compactas), `"baixar"` para acertar o centro (Mega Oferta: 2), e o estilo copiado da faixa original: `"cor"`, `"degrade"`, `"contorno"`, `"sombra"`, `"fonte"` (montserrat 900 na maioria), `"maxTamanho"`.
+- O texto começa com o nome da empresa (automático). O centro é o do corpo das letras (sem acento nem cedilha).
+
+### 9.5 Logo do cliente opcional (círculo ou vidro)
+- `"logo": { "rotulo": "No círculo de cima", "circulo": [cx,cy,r], "alvo": [x,y,w,h] }`. O `alvo` é o MAIOR retângulo que cabe INTEIRO na vaga (medido na máscara `<id>-vaga-<hash>.png`), para a logo do cliente nunca sair cortada. Sem logo do cliente, o espaço fica branco e limpo.
+- Logo só com lugar de logo e sem faixa: `"textos": []`.
+
+### 9.6 Receita, teste no navegador e testes
+1. `node scripts/studio/logos-de-promocao.mjs ../logos-de-promocao-originais/fila/<id>.png <id> "<Nome>"` (erro "UNKNOWN open lista.json" = trava do Windows: rode de novo).
+2. Navegador (`preview_start` name `vite-dev`, porta 5199), em JavaScript na página:
+   ```js
+   const m = await import('/src/lib/studio/logoPersonalizada.ts?t='+Date.now()); const L = await import('/src/lib/studio/logosDePromocao.ts?t='+Date.now());
+   const lista = Object.values(L).find(Array.isArray); const l = lista.find(x => x.id === 'promocao-<id>');
+   const c = await m.desenharLogoPersonalizada(l, { textos: { faixa: 'SUPERMERCADO BOM PREÇO' }, logoUrl: null }); document.body.innerHTML=''; document.body.appendChild(c);
+   ```
+   Testar nome curto, nome comprido (2 linhas) e com Ç e acento; conferir centralizado e dentro das listras. Logo do cliente: passar `logoUrl` com uma imagem de teste.
+3. Se a logo tem espaço editável, pôr `promocao-<id>` na lista do teste "faixas e espaços" em `src/tests/unit/logosDePromocao355.test.ts`.
+4. `npx vitest run src/tests/unit/logosDePromocao355.test.ts src/tests/unit/studio src/tests/unit/regra` → commit (nunca `src/lib/biblioteca.ts`, `supabase/.temp/cli-latest`, `deno.lock`).
+
+### 9.7 Responder ao dono (modelo)
+- Tabela: logo | pasta | como ficou (igual à original / o que virou editável).
+- Imagens de antes e depois quando houve edição.
+- Contagem da meta e a PRÓXIMA pasta. Para contar, no navegador: `const P=await import('/src/lib/studio/pastasDeLogos.ts');const Lg=await import('/src/lib/studio/logos.ts');P.progressoDaMeta(Lg.LOGOS_OFICIAIS)`.
+- Fechar com: "Pode continuar mandando, ou diga **publique**."
+- Atualizar `docs/PONTO_DE_RETOMADA.md` e este manual (seção 6).
+
+### 9.8 Publicar (quando o dono mandar)
+`node scripts/ops/publicar-main.mjs --forcar` → esperar a Vercel (~3 a 5 min) → baixar 3 a 5 logos novas de `https://sitesobremidia.vercel.app/studio/logos/promocao/<arquivo>` e comparar os bytes com o local (`cmp`) → atualizar a retomada, o estado (P-36) e este manual.
