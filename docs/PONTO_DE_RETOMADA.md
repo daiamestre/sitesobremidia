@@ -43,3 +43,20 @@ com a pasta, o que ficou editável e a contagem da meta (próxima pasta).
 - A faixa limpa fica igual à original (mesma cor, brilho e frisos). Comparar sempre com a original, ampliado, antes de responder.
 - Logo do cliente é opcional: sem ela o espaço fica branco/limpo; com ela aparece inteira dentro do espaço.
 - Responder sempre em pt-BR. Conta de teste: `e2e-owner@sobremidia.com.br`. Nunca senhas. Nunca gastar ElevenLabs.
+
+## 5. Acesso a tudo: chaves, contas e como desenrolar (sempre vale)
+- **Chaves (API, tokens) estão no cofre do PC: `~/.sobremidia-secrets/tokens.env`** (fora do repositório). Os scripts de
+  `scripts/ops/` já leem dali sozinhos. NUNCA imprimir, copiar para o chat, nem commitar os valores; usar só pelos scripts.
+  Chaves cadastradas (só os nomes): SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, VERCEL_TOKEN, VERCEL_PROJECT_ID,
+  VERCEL_TEAM_ID, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, OPENAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY,
+  GEMINI_API_KEY, ELEVENLABS_API_KEY (PROIBIDO gastar sem ordem do dono), PEXELS_API_KEY, PIXABAY_API_KEY, COSMOS_TOKEN,
+  MODAL_TOKEN_ID/SECRET/PROFILE, CONTENT_FACTORY_SECRET, ANALISE_MIDIA_SEGREDO, TABLOIDE_IA_SEGREDO/URL, STUDIO_SEGREDO.
+- **Como usar cada coisa (comandos prontos):** `scripts/ops/README.md` — banco (`node scripts/ops/sql.mjs`), publicar o site
+  (`publicar-main.mjs`), conferir o site, sessão de teste no navegador (`sessao-teste.mjs`, conta e2e-owner, sem senha),
+  Player/APK (`publicar-player.mjs`), funções do Supabase. Provedores de IA e qual chave usa: `docs/autonomia/PROVEDORES_DE_IA.md`.
+- **Receitas (skills) em `.claude/skills/`:** deploy-producao, release-player, migracao-segura, conteudo-automatico,
+  conferir-painel, encartes-e-palcos, retomar-trabalho. Onde mexer em cada pedido: `docs/MAPA_DO_PROJETO.md`.
+- **Autorização do dono:** fazer tudo sem pedir licença (corrigir, testar, commitar, publicar). Exceções: senhas, criar
+  contas, gastar dinheiro/créditos pagos (ElevenLabs) e o Player comercial 5.7.10 (APK novo só como teste).
+- **Se travar:** ler o erro, procurar no `docs/engineering/FINDINGS_LEDGER.md` (grep pelo assunto) como foi resolvido antes,
+  e seguir. Se a trava do Claude Code negar uma ação, explicar ao dono e seguir por caminho seguro.
