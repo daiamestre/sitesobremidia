@@ -15,7 +15,7 @@ description: Retomar o trabalho no SOBRE MÍDIA de onde parou (troca de janela, 
 4. Se houver arquivos sem commit de outra sessão, confira o que são antes de mexer. Nunca commite `src/lib/biblioteca.ts` nem `supabase/.temp/cli-latest`.
 
 ## Ao terminar (ritual obrigatório)
-0. Atualize `docs/PONTO_DE_RETOMADA.md` (o que estávamos fazendo, situação exata, próximo passo com comandos). Ordem do dono: a próxima conversa tem de continuar dali sem perguntar.
+0. Atualize `docs/PONTO_DE_RETOMADA.md` e, em conversa longa, escreva o resumo em ordem (pedido do dono | o que fizemos e como) em `docs/historico/CONVERSA_<assunto>_<datas>.md`. Depois atualize `docs/PONTO_DE_RETOMADA.md` (o que estávamos fazendo, situação exata, próximo passo com comandos). Ordem do dono: a próxima conversa tem de continuar dali sem perguntar.
 1. Escreva o F-NN novo em `docs/engineering/FINDINGS_LEDGER.md` com pedido, causa, feito, prova e limite.
 2. Atualize `docs/ESTADO_DO_SISTEMA.md`:
    - acrescente a linha na tabela de entregas (seção 3);

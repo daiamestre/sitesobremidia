@@ -9,6 +9,9 @@
 
 Atualizado em: **23/11/2026** · Assunto em andamento: **Logos de promoção do dono (P-36, F-355..F-358)**
 
+## 0. O que já foi feito (contexto completo)
+Resumo, em ordem, de tudo o que fizemos e como: `docs/historico/` (última: `CONVERSA_LOGOS_E_FUNDOS_2026-11-20_a_24.md`). Ler antes de continuar.
+
 ## 1. O que estávamos fazendo
 O dono manda logos de promoção (imagens no chat). Cada logo é guardada na fila, tratada pela receita (pasta, cores,
 faixa editável, logo do cliente opcional) e commitada. **Publicar no site só quando o dono pedir** ("publique",

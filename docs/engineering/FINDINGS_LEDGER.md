@@ -4176,3 +4176,13 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - Manual `docs/studio/LOGOS_E_FUNDOS_DO_DONO.md`: fluxo do dono, regras, onde fica cada coisa, receitas, situação, fila (hoje vazia), lições e dúvidas abertas. Ligado em ESTADO_DO_SISTEMA (P-36), DECISOES_DO_DONO, MAPA_DO_PROJETO, CLAUDE.md e skill encartes-e-palcos.
   - **Publicação (23/11, a pedido do dono "publique"):** as 43 logos da fila (incluindo as 4 Mega Oferta e o `acento` da Feliz Ano Novo) publicadas num envio só (`node scripts/ops/publicar-main.mjs`; blindagem do vídeo verde). **111 logos no ar**, conferidas byte a byte contra o local (`lista.json` e PNGs com o mesmo SHA-256). Fila vazia.
 - **Lição:** em fundo escovado, Laplace puro ou cópia de outras linhas deixam borrão e emenda; continuar a listra na mesma linha resolve.
+- **Depois (23–24/11/2026), também no F-358:**
+  - **Mega Oferta (4 cores):** "YOUR TEXT HERE" tirado com a faixa refeita AO LONGO da curva entre os frisos medidos (`liso` + `aoLongo`: `frisos`, `topoPelasLetras`, `uMin`/`uMax`), igual à original (brilho, cor e frisos). Texto editável em arco.
+  - **Texto nas faixas:** nunca passa das listras (`alturaUtil`, mede acento e Ç), 2 linhas compactas com folga mínima (`entreLinhas`), centralizado pelo corpo das letras (`baixar`); também nas faixas retas; faixa reta inclinada com `giro`.
+  - **Faixas em branco editáveis:** Liquidação de Ano Novo verde e preta, Ano Novo (estrela), Feliz Ano Novo (fita).
+  - **Xadrez:** opaco (`forcar`, `vagaNeutro`) no Réveillon (relógio); MEIO TRANSPARENTE (`alfa`, `porAlfa`, `circulo`, `circuloTudo`) e "ALPHA BACKGROUND" em aro preto (`aro` + `beirada`) na Ofertas Fim de Ano (balões). Logo do cliente no maior retângulo inteiro da vaga.
+  - **Ofertas de Verão:** letras pretas "SUA LOGO AQUI" (`letra.preto`) e texto inclinado. Pasta nova ☀️ Verão (22 pastas).
+  - **Publicação:** 43 logos num envio só (111 no ar), conferidas byte a byte no site.
+  - **Memória do sistema (ordem do dono):** `docs/PONTO_DE_RETOMADA.md` lido primeiro por toda conversa (CLAUDE.md, skill retomar-trabalho, `onde-paramos.mjs`, gancho SessionStart em `.claude/settings.json`); passo a passo das logos (manual, seção 9); `docs/studio/PROCURA_DE_PRODUTOS.md`; resumo da conversa em `docs/historico/CONVERSA_LOGOS_E_FUNDOS_2026-11-20_a_24.md`.
+  - **Lições:** Laplace deixa faixa brilhante lisa; área reta corta brilho curvo; detecção padrão de xadrez exige alfa > 240; `faixaInteira` em aro preto deixa listras; heredoc no terminal quebra texto com crases (usar a ferramenta de escrever arquivo).
+
