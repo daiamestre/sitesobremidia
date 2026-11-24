@@ -15,14 +15,12 @@ faixa editável, logo do cliente opcional) e commitada. **Publicar no site só q
 "adicione as logos"), tudo de uma vez. Manual completo e regras: `docs/studio/LOGOS_E_FUNDOS_DO_DONO.md`.
 
 ## 2. Situação exata
-- **43 logos PRONTAS e commitadas, ainda NÃO publicadas** (estão em `public/studio/logos/promocao/` e na lista
-  `src/lib/studio/logosDePromocao.ts`). Lista das recebidas: `../logos-de-promocao-originais/_fila-para-publicar.txt`;
-  arquivos originais em `../logos-de-promocao-originais/fila/`.
-- No ar continuam as 68 anteriores. Meta: 15 logos por pasta, **10 de 22 pastas completas**, próxima **Dia das Mães (0)**.
-- Pasta nova criada: ☀️ Verão.
+- **23/11/2026: as 43 logos da fila foram PUBLICADAS** (commit 92c9b98 enviado ao main; a Vercel publica do main). No ar: 111 logos de promoção.
+- A fila agora está vazia de pendências: logos novas que o dono mandar entram nela (`../logos-de-promocao-originais/_fila-para-publicar.txt` + `fila/<id>.png`), passam pela receita, são commitadas e esperam o próximo "publique".
+- Meta: 15 logos por pasta, **10 de 22 pastas completas**, próxima **Dia das Mães (0)**. Pasta ☀️ Verão criada em 23/11.
 
 ## 3. Próximo passo (faça assim, sem perguntar)
-**Se o dono pedir para publicar as logos guardadas:**
+**Se o dono pedir para publicar as logos guardadas (as que entrarem depois de 23/11):**
 1. `npx vitest run src/tests/unit/logosDePromocao355.test.ts src/tests/unit/studio src/tests/unit/regra` (tudo tem de passar).
 2. `git status` — nunca commitar `src/lib/biblioteca.ts`, `supabase/.temp/cli-latest` nem `deno.lock` (são de outra sessão).
 3. `node scripts/ops/publicar-main.mjs --forcar` (envia o ramo atual e o main; a Vercel publica do main).

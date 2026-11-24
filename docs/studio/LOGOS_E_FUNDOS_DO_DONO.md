@@ -88,7 +88,7 @@ Restrições gerais: senha nunca; segredos só em `~/.sobremidia-secrets/tokens.
 - **Pronto e não publicado (23/11):** as 4 Mega Oferta já passaram pela receita no PC (estão na lista local, com texto editável na faixa, conferidas no navegador com nomes de exemplo); falta só o commit + publicar junto com as outras.
 - **Pronto e não publicado:** zona `acento` da `feliz-ano-novo-fita` (versão limpa gerada e conferida: só o til saiu).
 
-## 6. Fila — 43 logos PRONTAS no projeto (commit), esperando publicar
+## 6. Fila — 43 logos PUBLICADAS em 23/11/2026 (as próximas que chegarem entram aqui)
 
 Situação em 23/11/2026: as 43 recebidas já passaram pela receita (estão em `public/studio/logos/promocao/` e na lista local, commitadas), com pasta, cores e as faixas editáveis prontas. **Falta só publicar** (`node scripts/ops/publicar-main.mjs --forcar`) quando o dono pedir ("publique"). O dono disse que vai continuar mandando: cada logo nova entra na fila (`_fila-para-publicar.txt` + `fila/<id>.png`) e passa pela receita do mesmo jeito.
 
