@@ -42,6 +42,12 @@ function main() {
   }
   const sujos = git('status', '--porcelain', '--untracked-files=no').split('\n').filter(Boolean).map((l) => l.slice(3));
   console.log('=== SOBRE MÍDIA — onde paramos ===');
+  // ORDEM DO DONO (23/11/2026): o ponto exato da última conversa vem primeiro (docs/PONTO_DE_RETOMADA.md)
+  if (fs.existsSync('docs/PONTO_DE_RETOMADA.md')) {
+    console.log('\n>>> PONTO DE RETOMADA (leia e continue daqui; atualize ao terminar) <<<\n');
+    console.log(fs.readFileSync('docs/PONTO_DE_RETOMADA.md', 'utf8').split(/\r?\n/).filter((l) => !l.startsWith('>')).join('\n').trim());
+    console.log('\n>>> fim do ponto de retomada <<<\n');
+  }
   console.log(`Ramo: ${git('branch', '--show-current')}  ·  último commit: ${git('log', '-1', '--format=%h %s (%cr)')}`);
   console.log(`Arquivos alterados sem commit: ${sujos.length}${sujos.length ? ` (${sujos.slice(0, 5).join(', ')}${sujos.length > 5 ? ', …' : ''})` : ''}`);
   console.log('\nÚltimos commits:');

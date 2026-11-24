@@ -1,6 +1,7 @@
 # SOBRE MÍDIA — atalhos (curto de propósito: carrega em toda mensagem)
 
 - Responder e explicar **sempre em português do Brasil**, inclusive nos avisos de progresso.
+- **CONTINUAR DE ONDE PAROU (ordem do dono):** antes de tudo, ler `docs/PONTO_DE_RETOMADA.md` (o ponto exato da última conversa) e seguir o próximo passo dele sem perguntar o que já está escrito. Ao terminar cada etapa, ATUALIZAR esse arquivo (é o que a próxima conversa vai ler).
 - **Onde paramos / o que falta:** `node scripts/ops/onde-paramos.mjs` e `docs/ESTADO_DO_SISTEMA.md`; regras já decididas: `docs/DECISOES_DO_DONO.md`. Ao terminar, atualizar os dois e o FINDINGS_LEDGER (skill `retomar-trabalho`).
 - Governança: `AGENTS.md`. Sempre corrigir, commitar e publicar (Vercel + Supabase; OTA quando for Player).
 - **Vercel é plano GRÁTIS (limite de 10 GB de funções):** enviar sempre com `node scripts/ops/publicar-main.mjs` (trava de teto diário), juntar várias correções num envio só, nunca criar função nova em `api/`.

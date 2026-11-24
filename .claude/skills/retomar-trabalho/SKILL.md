@@ -6,6 +6,7 @@ description: Retomar o trabalho no SOBRE MÍDIA de onde parou (troca de janela, 
 # Retomar e registrar o trabalho — SOBRE MÍDIA
 
 ## Ao começar
+0. Leia `docs/PONTO_DE_RETOMADA.md`: é o ponto EXATO onde a última conversa parou e o próximo passo. Siga dali.
 1. Rode `node scripts/ops/onde-paramos.mjs`. Ele mostra o ramo, o que está sem commit, as últimas entregas e as pendências abertas.
 2. Leia `docs/ESTADO_DO_SISTEMA.md` e `docs/DECISOES_DO_DONO.md`. Não pergunte de novo o que já está decidido ali.
 3. Pendência pedida pelo número: `node scripts/ops/onde-paramos.mjs P-NN` mostra o texto completo com os passos.
@@ -14,6 +15,7 @@ description: Retomar o trabalho no SOBRE MÍDIA de onde parou (troca de janela, 
 4. Se houver arquivos sem commit de outra sessão, confira o que são antes de mexer. Nunca commite `src/lib/biblioteca.ts` nem `supabase/.temp/cli-latest`.
 
 ## Ao terminar (ritual obrigatório)
+0. Atualize `docs/PONTO_DE_RETOMADA.md` (o que estávamos fazendo, situação exata, próximo passo com comandos). Ordem do dono: a próxima conversa tem de continuar dali sem perguntar.
 1. Escreva o F-NN novo em `docs/engineering/FINDINGS_LEDGER.md` com pedido, causa, feito, prova e limite.
 2. Atualize `docs/ESTADO_DO_SISTEMA.md`:
    - acrescente a linha na tabela de entregas (seção 3);

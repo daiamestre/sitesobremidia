@@ -10,6 +10,7 @@
 
 | # | Arquivo | Para quê |
 |---|---|---|
+| 0 | `docs/PONTO_DE_RETOMADA.md` | **o ponto EXATO da última conversa e o próximo passo — ler primeiro e atualizar ao terminar** |
 | 1 | `docs/ESTADO_DO_SISTEMA.md` (este) | onde paramos, pendências numeradas e como retomar cada uma |
 | 2 | `docs/DECISOES_DO_DONO.md` | regras já decididas pelo dono (não perguntar de novo) |
 | 3 | `AGENTS.md` | governança: preservar o que funciona, ciclo de correção, Player e banco protegidos |
