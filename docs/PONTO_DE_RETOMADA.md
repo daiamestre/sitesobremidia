@@ -32,13 +32,14 @@ faixa editável, logo do cliente opcional) e commitada. **Publicar no site só q
 5. Atualizar este arquivo (seção 2: "publicadas em DD/MM"), `docs/ESTADO_DO_SISTEMA.md` (P-36) e o manual das logos.
 
 **Se o dono mandar mais logos:** seguir o PASSO A PASSO da seção 9 do manual (análise, fila, apagar dizeres, faixa editável, logo do cliente, teste, resposta) e a seção 1 (`docs/studio/LOGOS_E_FUNDOS_DO_DONO.md`): conferir fundo
-transparente e repetição → guardar na fila → receita → faixa em branco ou "your…" vira editável (texto centralizado, dentro
+transparente e se não é a MESMA imagem (mesma frase em outra cor NÃO é repetida: entra separada por cor) → guardar na fila → receita → faixa em branco ou "your…" vira editável (texto centralizado, dentro
 das listras, no estilo da faixa) → conferir lado a lado (`scripts/studio/conferir-logo.mjs`) → testes → commit → responder
 com a pasta, o que ficou editável e a contagem da meta (próxima pasta).
 
 **Quando todas as pastas baterem 15:** lembrar o dono de mandar os FUNDOS.
 
 ## 4. Regras que não se pergunta de novo (resumo; o completo está no manual e nas decisões)
+- **MESMA FRASE NÃO É REPETIDA (dono, 24/11/2026, bravo):** várias logos podem ter a MESMA frase e até o MESMO desenho em CORES diferentes (Carnaval de Ofertas azul/verde/vermelho, Mega Oferta 4 cores…). NUNCA descartar, separar nem perguntar por ter a mesma frase: todas entram, separadas por COR (id com a cor: `<frase>-<cor>`). Só é repetida a imagem IDÊNTICA (mesmo arquivo ou a mesma imagem na mesma cor, já no ar ou na fila); na dúvida, entra.
 - Logo entra IGUAL à original, byte a byte. Só saem dizeres de modelo ("YOUR LOGO", "YOUR TEXT HERE", "SUA LOGO AQUI",
   "ALPHA BACKGROUND", xadrez). Nunca recortar o desenho.
 - Faixa em branco = SEMPRE editável. Faixa com "your…" = dizer apagado e editável. Faixa que completa a frase NÃO muda.

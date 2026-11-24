@@ -8,7 +8,7 @@
 
 1. O dono manda imagens de logos no chat (uma ou várias por mensagem).
 2. A cada logo recebida, a IA:
-   - confere se não repete outra (já publicada ou na fila) e se tem fundo transparente;
+   - confere se tem fundo transparente e se não é a MESMA IMAGEM já guardada (mesmo arquivo, mesma cor). **MESMA FRASE NÃO É REPETIDA (dono, 24/11/2026, bravo):** várias logos podem ter a MESMA frase e até o MESMO desenho em CORES diferentes (Carnaval de Ofertas azul/verde/vermelho, Mega Oferta 4 cores…). NUNCA descartar, separar nem perguntar por ter a mesma frase: todas entram, separadas por COR (id com a cor: `<frase>-<cor>`). Só é repetida a imagem IDÊNTICA (mesmo arquivo ou a mesma imagem na mesma cor, já no ar ou na fila); na dúvida, entra.;
    - **guarda** na fila (seção 6), sem publicar;
    - responde em pt-BR com: nome e pasta de cada logo, o que vai virar editável (faixa, placa, "your logo"), **quanto falta em cada pasta para a meta** e **qual é a próxima pasta** da meta;
    - pergunta só o que for realmente dúvida (ex.: texto errado na arte, logo que serve para duas pastas).
@@ -27,6 +27,7 @@
 | **NUNCA recortar o desenho.** Nenhum ponto da logo pode ficar transparente (teste "furos"). A 1ª versão da Black Friday ficou "toda recortada" e o dono reprovou. | 22/11 |
 | **REGRA DE TRABALHO:** comparar SEMPRE a original com a corrigida, lado a lado, de perto (cada zona + mapa do que mudou), e repetir até não sobrar NENHUMA falha, antes de publicar e de responder. Mostrar o antes e depois ao dono. | 22/11 |
 | Texto errado na arte só é corrigido quando o dono manda (ex.: "Año" → "Ano", pedido em 23/11). Se algo parecer estranho, PERGUNTE. | 23/11 |
+| **MESMA FRASE NÃO É REPETIDA (dono, 24/11/2026, bravo):** várias logos podem ter a MESMA frase e até o MESMO desenho em CORES diferentes (Carnaval de Ofertas azul/verde/vermelho, Mega Oferta 4 cores…). NUNCA descartar, separar nem perguntar por ter a mesma frase: todas entram, separadas por COR (id com a cor: `<frase>-<cor>`). Só é repetida a imagem IDÊNTICA (mesmo arquivo ou a mesma imagem na mesma cor, já no ar ou na fila); na dúvida, entra. | 24/11 |
 | **Pastas:** por segmento (mercado, açougue, farmácia, padaria, Black Friday…) e por data (Natal, Fim de Ano, Dia das Mães, Dia dos Pais, São João, Carnaval…). Cada pasta tem capa que gira com o nome dela. | 22/11 |
 | **Logo genérica** (não fala de segmento: Oferta do Dia, Mega Oferta, Show de Ofertas…) aparece em todas as pastas de segmento que combinam com a **COR** dela (`PASTAS_DA_COR`). | 23/11 |
 | **Meta: 15 logos por pasta** (era 8; depois talvez 20). A página Logos mostra a meta só para dono e ADM. | 23/11 |
@@ -132,7 +133,7 @@ Situação em 23/11/2026: as 43 recebidas passaram pela receita, foram commitada
    node -e "const sharp=require('sharp');(async()=>{const p='<arquivo>';const m=await sharp(p).metadata();const {data}=await sharp(p).ensureAlpha().raw().toBuffer({resolveWithObject:true});let t=0;for(let i=3;i<data.length;i+=4)if(data[i]<20)t++;console.log(m.width,m.height,'transp',(t/(data.length/4)*100).toFixed(0)+'%')})()"
    ```
    - Transparência 0% = fundo pintado: avisar o dono (a logo entra igual, mas com fundo).
-   - Ver se já existe: `ls public/studio/logos/promocao | grep -i <palavra>` e `grep -i <palavra> ../logos-de-promocao-originais/_fila-para-publicar.txt`.
+   - Ver se a MESMA IMAGEM já existe (nunca pela frase): `ls public/studio/logos/promocao | grep -i <palavra>` só para achar as parecidas e OLHAR; se for outra cor ou outro desenho, ENTRA com a cor no id. **MESMA FRASE NÃO É REPETIDA (dono, 24/11/2026, bravo):** várias logos podem ter a MESMA frase e até o MESMO desenho em CORES diferentes (Carnaval de Ofertas azul/verde/vermelho, Mega Oferta 4 cores…). NUNCA descartar, separar nem perguntar por ter a mesma frase: todas entram, separadas por COR (id com a cor: `<frase>-<cor>`). Só é repetida a imagem IDÊNTICA (mesmo arquivo ou a mesma imagem na mesma cor, já no ar ou na fila); na dúvida, entra.
 3. Olhar a imagem e classificar CADA faixa, placa ou círculo:
 
    | O que tem | O que fazer |
