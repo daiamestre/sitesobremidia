@@ -58,5 +58,6 @@ com a pasta, o que ficou editável e a contagem da meta (próxima pasta).
   conferir-painel, encartes-e-palcos, retomar-trabalho. Onde mexer em cada pedido: `docs/MAPA_DO_PROJETO.md`.
 - **Autorização do dono:** fazer tudo sem pedir licença (corrigir, testar, commitar, publicar). Exceções: senhas, criar
   contas, gastar dinheiro/créditos pagos (ElevenLabs) e o Player comercial 5.7.10 (APK novo só como teste).
+- **Procurar foto de produto:** site OFICIAL da marca primeiro; se não achar, sites PARCEIROS (lojas que vendem a marca); senão vira pedido de foto. Manual: `docs/studio/PROCURA_DE_PRODUTOS.md`.
 - **Se travar:** ler o erro, procurar no `docs/engineering/FINDINGS_LEDGER.md` (grep pelo assunto) como foi resolvido antes,
   e seguir. Se a trava do Claude Code negar uma ação, explicar ao dono e seguir por caminho seguro.
