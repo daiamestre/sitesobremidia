@@ -34,7 +34,7 @@ faixa editável, logo do cliente opcional) e commitada. **Publicar no site só q
 **Se o dono mandar mais logos:** seguir o PASSO A PASSO da seção 9 do manual (análise, fila, apagar dizeres, faixa editável, logo do cliente, teste, resposta) e a seção 1 (`docs/studio/LOGOS_E_FUNDOS_DO_DONO.md`): conferir fundo
 transparente e se não é a MESMA imagem (mesma frase em outra cor NÃO é repetida: entra separada por cor) → guardar na fila → receita → faixa em branco ou "your…" vira editável (texto centralizado, dentro
 das listras, no estilo da faixa) → conferir lado a lado (`scripts/studio/conferir-logo.mjs`) → testes → commit → responder
-com a pasta, o que ficou editável e a contagem da meta (próxima pasta).
+com a pasta e o que ficou editável (contagem da meta só se o dono pedir; cor nunca "lota" e nunca se pede/sugere cor — 24/11).
 
 **Quando todas as pastas baterem 15:** lembrar o dono de mandar os FUNDOS.
 

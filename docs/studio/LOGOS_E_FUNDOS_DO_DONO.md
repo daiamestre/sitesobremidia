@@ -10,7 +10,7 @@
 2. A cada logo recebida, a IA:
    - confere se tem fundo transparente e se não é a MESMA IMAGEM já guardada (mesmo arquivo, mesma cor). **MESMA FRASE NÃO É REPETIDA (dono, 24/11/2026, bravo):** várias logos podem ter a MESMA frase e até o MESMO desenho em CORES diferentes (Carnaval de Ofertas azul/verde/vermelho, Mega Oferta 4 cores…). NUNCA descartar, separar nem perguntar por ter a mesma frase: todas entram, separadas por COR (id com a cor: `<frase>-<cor>`). Só é repetida a imagem IDÊNTICA (mesmo arquivo ou a mesma imagem na mesma cor, já no ar ou na fila); na dúvida, entra.;
    - **guarda** na fila (seção 6), sem publicar;
-   - responde em pt-BR com: nome e pasta de cada logo, o que vai virar editável (faixa, placa, "your logo"), **quanto falta em cada pasta para a meta** e **qual é a próxima pasta** da meta;
+   - responde em pt-BR com: nome e pasta de cada logo, o que vai virar editável (faixa, placa, "your logo"), (contagem da meta e próxima pasta SÓ se o dono pedir — regra de 24/11: cor nunca "lota", nunca pedir/sugerir cor);
    - pergunta só o que for realmente dúvida (ex.: texto errado na arte, logo que serve para duas pastas).
 3. Só quando o dono disser **"adicione as logos"** (ou "publique"), tudo entra **numa publicação só** (Vercel é plano grátis; nunca uma publicação por logo).
 4. Quando TODAS as pastas baterem a meta → **lembrar o dono de mandar os FUNDOS**, para combinar fundos com as logos. O objetivo dele: **ficar melhor que o concorrente**.
@@ -196,7 +196,7 @@ Situação em 23/11/2026: as 43 recebidas passaram pela receita, foram commitada
 ### 9.7 Responder ao dono (modelo)
 - Tabela: logo | pasta | como ficou (igual à original / o que virou editável).
 - Imagens de antes e depois quando houve edição.
-- Contagem da meta e a PRÓXIMA pasta. Para contar, no navegador: `const P=await import('/src/lib/studio/pastasDeLogos.ts');const Lg=await import('/src/lib/studio/logos.ts');P.progressoDaMeta(Lg.LOGOS_OFICIAIS)`.
+- Contagem da meta e a próxima pasta SÓ SE O DONO PEDIR (24/11). Nunca dizer que uma cor/pasta "lotou" nem sugerir cores para ele mandar. Para contar, no navegador: `const P=await import('/src/lib/studio/pastasDeLogos.ts');const Lg=await import('/src/lib/studio/logos.ts');P.progressoDaMeta(Lg.LOGOS_OFICIAIS)`.
 - Fechar com: "Pode continuar mandando, ou diga **publique**."
 - Atualizar `docs/PONTO_DE_RETOMADA.md` e este manual (seção 6).
 
