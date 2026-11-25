@@ -5,6 +5,7 @@ description: Criar ou evoluir encartes oficiais, palcos de ofertas (carrossel), 
 
 # Encartes e palcos — SOBRE MÍDIA Studio
 
+**Antes de tudo:** `docs/studio/MANUAL_DE_CRIACAO_DO_STUDIO.md` (regras de ouro: produto NUNCA com fundo, nunca maquete à mão, balão só por `ESTILOS_DE_BALAO`).
 Padrão completo, com composição, regras e receitas: `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Leia antes de começar.
 
 ## Atalho por pedido

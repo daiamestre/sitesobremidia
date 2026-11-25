@@ -22,6 +22,7 @@ import { lerLinha, lerLista, lerValor, mesclarListas, paraLinha, precoParaTexto,
 import { CESTA_PADRAO } from '@/lib/tabloide/encartes';
 import { QUANTIDADES, gravarQuantidade, lerQuantidade, quantidadeCompleta } from '@/lib/studio/gradeInteligente';
 import { cn } from '@/lib/utils';
+import { FotoDoProduto } from '@/components/studio/FotoDoProduto';
 
 /** os produtos colocados na pasta seguem para o editor do encarte e para o palco (mesma aba do navegador) */
 export const CHAVE_PRODUTOS_DO_ENCARTE = 'studio-encarte-produtos';
@@ -161,14 +162,14 @@ function LinhaDoProduto({ p, s, destaque, aoTrocarFoto, aoMaisFoto, atencao, aoT
   return (
     <li className={cn('flex items-center gap-2 rounded-lg border bg-black/20 p-1.5', atencao ? 'border-2 border-red-500 shadow-[0_0_14px_rgba(239,68,68,.9)] motion-safe:animate-pulse' : 'border-white/10')} data-testid="produto-linha" data-atencao={atencao ? 'sim' : undefined} onPointerDown={atencao ? aoTocar : undefined} onFocusCapture={atencao ? aoTocar : undefined}>
       <button type="button" onClick={aoTrocarFoto} title="Trocar a foto" aria-label={`Trocar a foto de ${p.nome}`} className="group relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white">
-        {p.imagem ? <img src={p.imagem.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+        {p.imagem ? <FotoDoProduto src={p.imagem.url} />
           : <span className="px-0.5 text-center text-[8px] font-bold leading-tight text-slate-500">{s.buscando.includes(p.nome) ? 'buscando…' : 'pôr foto'}</span>}
         <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"><ImagePlus className="h-4 w-4 text-white" /></span>
       </button>
       {/* F-354: as fotos a mais (verso/variações): aparecem juntas no vídeo; tocar tira */}
       {(p.imagensExtras ?? []).map((im, i) => (
         <button key={i} type="button" onClick={() => s.tirarFotoExtra(p, i)} title="Tirar esta foto" aria-label={`Tirar a foto ${i + 2} de ${p.nome}`} className="relative h-12 w-9 shrink-0 overflow-hidden rounded-md bg-white" data-testid="produto-foto-extra">
-          <img src={im.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+          <FotoDoProduto src={im.url} />
           <span className="absolute right-0 top-0 rounded-bl bg-black/70 px-0.5 text-[9px] font-bold leading-none text-white">×</span>
         </button>
       ))}
@@ -227,7 +228,7 @@ export function PainelDeProdutos({ s, destaques = 3, botao = 'Colocar nos encart
           <span className="block truncate text-[11px] text-slate-400">{s.produtos.length} produtos · {comFoto} com foto{incompletos ? ` · ${incompletos} incompleto${incompletos > 1 ? 's' : ''}` : ''}</span>
         </span>
         <span className="hidden shrink-0 -space-x-2 sm:flex" aria-hidden>
-          {s.produtos.filter((p) => p.imagem).slice(0, 3).map((p) => <img key={p.id} src={p.imagem!.url} alt="" className="h-8 w-8 rounded-full border-2 border-[#14062f] bg-white object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" />)}
+          {s.produtos.filter((p) => p.imagem).slice(0, 3).map((p) => <span key={p.id} className="h-8 w-8 overflow-hidden rounded-full border-2 border-[#14062f] bg-[#14062f]"><FotoDoProduto src={p.imagem!.url} /></span>)}
         </span>
         <span className="flex items-center gap-1 rounded-lg bg-white/10 px-2 py-1 text-xs font-semibold text-white">{aberto ? 'Fechar' : 'Editar'}<ChevronDown className={cn('h-4 w-4 transition', aberto && 'rotate-180')} /></span>
       </button>

@@ -49,6 +49,8 @@
 - **Escolher uma TELA** = a mídia entra na playlist que essa tela já está passando (F-229).
 
 ## 5. Studio, encartes e palco
+
+- **Manual de criação (24/11/2026, F-359, dono muito bravo):** toda criação, edição ou prévia de imagem, vídeo e áudio segue `docs/studio/MANUAL_DE_CRIACAO_DO_STUDIO.md`. **Produto NUNCA tem fundo** (branco, cinza ou quadrado) em lugar nenhum: arte, vídeo, prévia, capa, miniatura da lista e galeria. **Nunca mostrar maquete feita à mão:** toda imagem mostrada ao dono sai do desenhista real do sistema, com balão por `ESTILOS_DE_BALAO`.
 Padrão completo em `docs/studio/PADRAO_DE_ENCARTES_E_PALCOS.md`. Em resumo:
 - **"Sobre Mídia Studio"** fica no menu de todos os usuários. Só o dono e o ADM criam ou arquivam modelos. Os demais pagam R$ 4,99 por criação com IA, por PIX.
 - **Agente SOBRE MÍDIA próprio:** roda na Cloudflare e segue o Creative Core (`supabase/functions/_shared/studio/core/`). Sem arquitetura paralela, uma só cota e uma só biblioteca. Nunca dizer "gerado por IA" para plano ou modelo.

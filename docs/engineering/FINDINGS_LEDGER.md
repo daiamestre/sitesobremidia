@@ -4186,3 +4186,14 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
   - **Memória do sistema (ordem do dono):** `docs/PONTO_DE_RETOMADA.md` lido primeiro por toda conversa (CLAUDE.md, skill retomar-trabalho, `onde-paramos.mjs`, gancho SessionStart em `.claude/settings.json`); passo a passo das logos (manual, seção 9); `docs/studio/PROCURA_DE_PRODUTOS.md`; resumo da conversa em `docs/historico/CONVERSA_LOGOS_E_FUNDOS_2026-11-20_a_24.md`.
   - **Lições:** Laplace deixa faixa brilhante lisa; área reta corta brilho curvo; detecção padrão de xadrez exige alfa > 240; `faixaInteira` em aro preto deixa listras; heredoc no terminal quebra texto com crases (usar a ferramenta de escrever arquivo).
 
+
+
+### F-359 — Produto NUNCA com fundo branco (capas, prévias, miniaturas) e manual de criação do Studio (24/11/2026)
+- **Pedido do dono (muito bravo):** uma conversa mostrou uma maquete feita à mão, com balão inventado e produto com fundo. O dono cobrou que não havia nada escrito sobre como criar imagens, vídeos e áudio, e que ainda havia produtos com fundo branco nas capas e na criação.
+- **Causa 1:** a arte só tirava o fundo quando o link do passa-foto tinha `s=1` (F-351). Muitas fotos do catálogo estão com `recortada=true`, mas são PNG/JPG da marca SEM `s=1`.
+- **Correção 1:** em `desenhar.ts`, `ehCamadaDeProduto` + `carregarImagemDoProduto`. Em `prepararDocumento`, toda camada "Produto"/"Produto N" com borda opaca passa por `produtoSemFundo(src, img, true)`, venha a foto de onde vier. A guarda no aparelho subiu para `sm-produto-sem-fundo-v2` (refaz os recortes guardados).
+- **Correção 2:** as miniaturas das telas de criação (`PalcoDeOfertas`, `ProdutosComFotos`, `GaleriaDeProdutos`) usam o componente novo `FotoDoProduto`, com o mesmo recorte, e não têm mais caixinha `bg-white`.
+- **Causa 2:** as 43 capas (`public/studio/capas`) tinham sido gravadas em 12/11, antes do F-351. Whisky, Caixa de som, Bolo, Pro Plan, Blusa e Naldecon apareciam num quadrado branco. **Correção:** todas regravadas (`gravar-capas.mjs --so=<as 43>`).
+- **Limite:** produto BRANCO em foto BRANCA (Carregador 5W Multilaser) não se recorta no aparelho: a tolerância come o produto, ele se parte, e a inspeção aprova o pedaço. No exemplo de Tecnologia, o carregador foi trocado pela Bateria 9V Panasonic (`segmentosDeOferta.ts`). O recorte definitivo depende da cota da Cloudflare Images (volta todo mês) ou de recorte no R2. Houve uma tentativa de 2ª passada com tolerância fina em `recorte.ts`, desfeita porque ainda cortava os pinos e o pé.
+- **Manual:** `docs/studio/MANUAL_DE_CRIACAO_DO_STUDIO.md` (regras de ouro, produto, balão, edição, palco, vídeo, áudio, capas, erros, testes, mapa). Ligado no CLAUDE.md, em DECISOES, no MAPA e na skill encartes-e-palcos.
+- **Teste:** `produtoSemFundo351.test.ts` (F-359: camada de produto e miniaturas).

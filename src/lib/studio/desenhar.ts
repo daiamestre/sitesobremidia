@@ -24,7 +24,7 @@ export const FOGO_PROIBIDO = new Set(['Brasas (efeito)', 'Fogo no chão (efeito)
  * antes de ir para qualquer arte (prévia, capa, palco, encarte, vídeo). Fundo liso na hora, com a MESMA inspeção do recorte da
  * nuvem (finalizarRecorte): recorte reprovado não é usado. O resultado fica guardado no aparelho (Cache Storage).
  */
-const GUARDA_SEM_FUNDO = 'sm-produto-sem-fundo-v1';
+const GUARDA_SEM_FUNDO = 'sm-produto-sem-fundo-v2'; // v2 (F-359): refaz os recortes guardados com a 2ª passada do produto branco
 async function recorteGuardado(src: string): Promise<Blob | null> {
   try { const c = await caches.open(GUARDA_SEM_FUNDO); const r = await c.match(src); return r ? await r.blob() : null; } catch { return null; }
 }
@@ -50,8 +50,9 @@ function temFundo(img: HTMLImageElement): boolean {
 }
 // um recorte por vez: o tablet/celular não trava com vários produtos chegando juntos
 let filaDeRecortes: Promise<unknown> = Promise.resolve();
-export async function produtoSemFundo(src: string, img: HTMLImageElement): Promise<HTMLImageElement> {
-  if (!pedeSemFundo(src) || !temFundo(img)) return img;
+export async function produtoSemFundo(src: string, img: HTMLImageElement, forcar = false): Promise<HTMLImageElement> {
+  // forcar (F-359): é a camada de um PRODUTO — produto NUNCA tem fundo (ordem do dono), venha a foto de onde vier
+  if (!(forcar || pedeSemFundo(src)) || !temFundo(img)) return img;
   const guardado = await recorteGuardado(src);
   if (guardado) return (await imagemDoBlob(guardado)) ?? img;
   const vez = filaDeRecortes.then(async () => {
@@ -80,6 +81,23 @@ export function carregarImagem(src: string): Promise<HTMLImageElement | null> {
     return p;
   }
   return carregarImagemSimples(src);
+}
+
+/** F-359: as camadas de produto ("Produto", "Produto 2"…) do palco, do encarte e do vídeo */
+export const ehCamadaDeProduto = (nome: string) => /^Produto( \d+)?$/.test(nome);
+/**
+ * F-359 (dono, 24/11/2026, bravo: "não admito produto com fundo branco, nem nas capas nem na criação"): a foto de PRODUTO
+ * que chega com fundo (borda opaca) — PNG da marca com fundo branco, link sem o pedido "sem fundo", foto da loja — tem o
+ * fundo tirado aqui, antes de qualquer arte, com a mesma inspeção do recorte da nuvem.
+ */
+const cacheDoProduto = new Map<string, Promise<HTMLImageElement | null>>();
+export function carregarImagemDoProduto(src: string): Promise<HTMLImageElement | null> {
+  let p = cacheDoProduto.get(src);
+  if (p) return p;
+  p = carregarImagem(src).then((i) => (i ? produtoSemFundo(src, i, true) : null));
+  cacheDoProduto.set(src, p);
+  void p.then((i) => { if (!i) cacheDoProduto.delete(src); });
+  return p;
 }
 
 const cacheSimples = new Map<string, Promise<HTMLImageElement | null>>();
@@ -116,7 +134,9 @@ function carregarImagemSimples(src: string): Promise<HTMLImageElement | null> {
 export async function prepararDocumento(d: Documento): Promise<Imagens> {
   await Promise.all(fontesDo(d).map(carregarFonteStudio));
   const mapa: Imagens = new Map();
-  await Promise.all([...imagensDo(d).map(async (s) => { const i = await carregarImagem(s); if (i) mapa.set(s, i); }), prepararEfeitos(d)]);
+  // F-359: foto de camada de PRODUTO sempre sem fundo (as outras imagens — fundo, logo, ícones — como vieram)
+  const deProduto = new Set(d.camadas.filter((c) => c.tipo === 'imagem' && ehCamadaDeProduto(c.nome)).map((c) => (c as { src: string }).src));
+  await Promise.all([...imagensDo(d).map(async (s) => { const i = await (deProduto.has(s) ? carregarImagemDoProduto(s) : carregarImagem(s)); if (i) mapa.set(s, i); }), prepararEfeitos(d)]);
   return mapa;
 }
 

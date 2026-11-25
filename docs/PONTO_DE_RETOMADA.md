@@ -18,6 +18,7 @@ faixa editável, logo do cliente opcional) e commitada. **Publicar no site só q
 "adicione as logos"), tudo de uma vez. Manual completo e regras: `docs/studio/LOGOS_E_FUNDOS_DO_DONO.md`.
 
 ## 2. Situação exata
+- **24/11/2026 (F-359): produto sem fundo em TODA tela + MANUAL DE CRIAÇÃO.** Toda camada de produto e toda miniatura passam pelo recorte; as 43 capas foram regravadas; o manual `docs/studio/MANUAL_DE_CRIACAO_DO_STUDIO.md` é obrigatório antes de criar, editar ou mostrar arte, vídeo ou áudio. Pendente: produto branco em foto branca (carregador) espera o recorte da nuvem (cota da Cloudflare volta todo mês).
 - **23/11/2026: as 43 logos da fila foram PUBLICADAS** (commit 92c9b98 enviado ao main; a Vercel publica do main). No ar: 111 logos de promoção.
 - **24/11/2026: 15 logos novas PUBLICADAS** (11 desta conversa + 4 que a outra conversa guardou: Oferta da Virada 50% OFF vermelha, Black Friday etiqueta e etiqueta pendurada, Liquida Ano Novo com "SEU LOGO AQUI" tirado e placa editável). Editáveis novas: Carnaval Conectado (placa), Ano Novo relógio e Saldão de Ano Novo (fitas em arco), Liquida Ano Novo (placa). No ar: 126 logos. A fila está vazia de pendências; logos novas entram nela (`../logos-de-promocao-originais/_fila-para-publicar.txt`, só ACRESCENTAR linhas: duas conversas podem escrever nele) + `fila/<id>.png`.
 - Meta (contando a fila): 15 logos por pasta, **10 de 22 pastas completas**, próxima **Dia das Mães (2)**; Carnaval 10; Fim de Ano 28. Pasta ☀️ Verão criada em 23/11.

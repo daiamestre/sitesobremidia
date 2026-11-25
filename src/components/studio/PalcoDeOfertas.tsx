@@ -52,6 +52,7 @@ import { EscolherLogo } from './PastaDeLogos';
 import { PainelDaLogo } from '@/components/studio/editor/PainelDaLogo';
 import { Cor, Faixa, MovimentoDoElemento } from '@/components/studio/editor/Paineis';
 import { ehCamadaDaLogo } from '@/lib/studio/logoEditavel';
+import { FotoDoProduto } from '@/components/studio/FotoDoProduto';
 
 type ProdutoDoPalco = Parameters<typeof palcoDoProduto>[0];
 const CHAVE_OPCOES = 'studio-palco-opcoes';
@@ -745,7 +746,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
               {comPreco.map((p) => (
                 <button key={p.id} type="button" role="option" aria-selected={sel?.id === p.id} onClick={() => { setVista('palco'); setSelId(p.id); setCena(null); escolherElemento(null); setTocando(true); }} title={p.nome}
                   className={cn('relative flex h-14 w-14 shrink-0 flex-col items-center overflow-hidden rounded-xl border bg-white', sel?.id === p.id ? 'border-[3px] border-[#FFD400]' : 'border-white/10', faltasDoProduto(p).length && 'ring-2 ring-amber-400')} data-testid="palco-fila-produto">
-                  {p.imagem ? <img src={p.imagem.url} alt="" className="h-9 w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : <span className="flex h-9 items-center px-1 text-center text-[8px] font-bold text-slate-500">sem foto</span>}
+                  {p.imagem ? <FotoDoProduto src={p.imagem.url} className="h-9 w-full object-contain" /> : <span className="flex h-9 items-center px-1 text-center text-[8px] font-bold text-slate-500">sem foto</span>}
                   <span className="w-full truncate bg-[#c40f24] px-0.5 text-center text-[10px] font-black text-white">{precoParaTexto(p.preco)}</span>
                 </button>
               ))}
@@ -820,7 +821,7 @@ export function PalcoDeOfertas({ segmento = 'mercado' }: { segmento?: SegmentoDo
                     <label className="w-28 text-xs text-slate-300">{promo ? 'Por' : 'Preço'}<input inputMode="decimal" value={precoParaTexto(sel.preco)} onChange={(e) => s.mudar(sel.id, { preco: lerValor(e.target.value) })} placeholder="39,90" className={cn(campoCss, 'font-bold')} data-testid="palco-preco" /></label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white">{sel.imagem ? <img src={sel.imagem.url} alt="" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /> : <span className="text-[8px] font-bold text-slate-500">sem foto</span>}</span>
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white/5">{sel.imagem ? <FotoDoProduto src={sel.imagem.url} /> : <span className="text-[8px] font-bold text-slate-500">sem foto</span>}</span>
                     <button type="button" onClick={() => setTrocando(sel)} className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/15 text-xs font-semibold text-white hover:bg-white/5" data-testid="palco-trocar-foto"><ImagePlus className="h-4 w-4" />Trocar ou enviar a foto</button>
                   </div>
                   {faltasDoProduto(sel).length > 0 && <p className="text-[11px] font-semibold text-red-500 motion-safe:animate-pulse">Falta: {faltasDoProduto(sel).join(', ')}</p>}

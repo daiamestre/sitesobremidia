@@ -5,7 +5,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 248,
+  "kb": 246,
   "nome": "Ofertas de Farmácia – verde e azul",
   "segmento": "farmacia",
   "tipo": "encarte"
@@ -16,7 +16,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 369,
+  "kb": 381,
   "nome": "Ofertas de Farmácia (verde)",
   "segmento": "farmacia",
   "tipo": "palco"
@@ -27,7 +27,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 263,
+  "kb": 266,
   "nome": "Mega Oferta – vermelho e azul",
   "segmento": "mercado",
   "tipo": "encarte"
@@ -38,7 +38,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 256,
+  "kb": 259,
   "nome": "Semana do Frango – azul e amarelo",
   "segmento": "mercado",
   "tipo": "encarte"
@@ -49,7 +49,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 431,
+  "kb": 517,
   "nome": "Alerta de Oferta (sirene)",
   "segmento": "mercado",
   "tipo": "palco"
@@ -71,7 +71,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 280,
+  "kb": 304,
   "nome": "Ofertas de Farmácia (vitrine)",
   "segmento": "farmacia",
   "tipo": "palco"
@@ -82,7 +82,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 210,
+  "kb": 213,
   "nome": "Ofertas – Padaria",
   "segmento": "padaria",
   "tipo": "encarte"
@@ -93,7 +93,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 176,
+  "kb": 179,
   "nome": "Ofertas – Padaria (modelo 2)",
   "segmento": "padaria",
   "tipo": "encarte"
@@ -104,7 +104,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 305,
+  "kb": 338,
   "nome": "Ofertas – Padaria",
   "segmento": "padaria",
   "tipo": "palco"
@@ -115,7 +115,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 261,
+  "kb": 283,
   "nome": "Ofertas – Padaria (modelo 2)",
   "segmento": "padaria",
   "tipo": "palco"
@@ -126,7 +126,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 188,
+  "kb": 202,
   "nome": "Ofertas – Adega",
   "segmento": "adega",
   "tipo": "encarte"
@@ -137,7 +137,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 170,
+  "kb": 187,
   "nome": "Ofertas – Adega (modelo 2)",
   "segmento": "adega",
   "tipo": "encarte"
@@ -148,7 +148,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 318,
+  "kb": 371,
   "nome": "Ofertas – Adega",
   "segmento": "adega",
   "tipo": "palco"
@@ -159,7 +159,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 273,
+  "kb": 319,
   "nome": "Ofertas – Adega (modelo 2)",
   "segmento": "adega",
   "tipo": "palco"
@@ -181,7 +181,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 182,
+  "kb": 179,
   "nome": "Ofertas – Açougue (modelo 2)",
   "segmento": "acougue",
   "tipo": "encarte"
@@ -192,7 +192,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 313,
+  "kb": 355,
   "nome": "Ofertas – Açougue",
   "segmento": "acougue",
   "tipo": "palco"
@@ -203,7 +203,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 233,
+  "kb": 286,
   "nome": "Ofertas – Açougue (modelo 2)",
   "segmento": "acougue",
   "tipo": "palco"
@@ -214,7 +214,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 214,
+  "kb": 220,
   "nome": "Ofertas – Suplementos",
   "segmento": "suplementos",
   "tipo": "encarte"
@@ -225,7 +225,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 181,
+  "kb": 179,
   "nome": "Ofertas – Suplementos (modelo 2)",
   "segmento": "suplementos",
   "tipo": "encarte"
@@ -236,7 +236,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 341,
+  "kb": 378,
   "nome": "Ofertas – Suplementos",
   "segmento": "suplementos",
   "tipo": "palco"
@@ -247,7 +247,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 305,
+  "kb": 329,
   "nome": "Ofertas – Suplementos (modelo 2)",
   "segmento": "suplementos",
   "tipo": "palco"
@@ -258,7 +258,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 202,
+  "kb": 207,
   "nome": "Ofertas – Quitanda e Hortifrúti",
   "segmento": "hortifruti",
   "tipo": "encarte"
@@ -269,7 +269,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 188,
+  "kb": 196,
   "nome": "Ofertas – Quitanda e Hortifrúti (modelo 2)",
   "segmento": "hortifruti",
   "tipo": "encarte"
@@ -280,7 +280,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 300,
+  "kb": 329,
   "nome": "Ofertas – Quitanda e Hortifrúti",
   "segmento": "hortifruti",
   "tipo": "palco"
@@ -291,7 +291,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 261,
+  "kb": 273,
   "nome": "Ofertas – Quitanda e Hortifrúti (modelo 2)",
   "segmento": "hortifruti",
   "tipo": "palco"
@@ -313,7 +313,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 193,
+  "kb": 194,
   "nome": "Ofertas – Pet Shop (modelo 2)",
   "segmento": "pet",
   "tipo": "encarte"
@@ -324,7 +324,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 322,
+  "kb": 356,
   "nome": "Ofertas – Pet Shop",
   "segmento": "pet",
   "tipo": "palco"
@@ -335,7 +335,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 275,
+  "kb": 302,
   "nome": "Ofertas – Pet Shop (modelo 2)",
   "segmento": "pet",
   "tipo": "palco"
@@ -346,7 +346,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 197,
+  "kb": 195,
   "nome": "Ofertas – Beleza e Perfumaria",
   "segmento": "beleza",
   "tipo": "encarte"
@@ -357,7 +357,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 158,
+  "kb": 156,
   "nome": "Ofertas – Beleza e Perfumaria (modelo 2)",
   "segmento": "beleza",
   "tipo": "encarte"
@@ -368,7 +368,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 293,
+  "kb": 336,
   "nome": "Ofertas – Beleza e Perfumaria",
   "segmento": "beleza",
   "tipo": "palco"
@@ -379,7 +379,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 234,
+  "kb": 267,
   "nome": "Ofertas – Beleza e Perfumaria (modelo 2)",
   "segmento": "beleza",
   "tipo": "palco"
@@ -390,7 +390,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 214,
+  "kb": 227,
   "nome": "Ofertas – Eletrônicos e Tecnologia",
   "segmento": "eletronicos",
   "tipo": "encarte"
@@ -401,7 +401,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 194,
+  "kb": 206,
   "nome": "Ofertas – Eletrônicos e Tecnologia (modelo 2)",
   "segmento": "eletronicos",
   "tipo": "encarte"
@@ -412,7 +412,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 329,
+  "kb": 379,
   "nome": "Ofertas – Eletrônicos e Tecnologia",
   "segmento": "eletronicos",
   "tipo": "palco"
@@ -423,7 +423,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 271,
+  "kb": 311,
   "nome": "Ofertas – Eletrônicos e Tecnologia (modelo 2)",
   "segmento": "eletronicos",
   "tipo": "palco"
@@ -434,7 +434,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 206,
+  "kb": 199,
   "nome": "Ofertas – Moda",
   "segmento": "moda",
   "tipo": "encarte"
@@ -445,7 +445,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 7.2,
-  "kb": 153,
+  "kb": 158,
   "nome": "Ofertas – Moda (modelo 2)",
   "segmento": "moda",
   "tipo": "encarte"
@@ -456,7 +456,7 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 304,
+  "kb": 352,
   "nome": "Ofertas – Moda",
   "segmento": "moda",
   "tipo": "palco"
@@ -467,9 +467,31 @@
   "largura": 360,
   "altura": 640,
   "segundos": 10.8,
-  "kb": 222,
+  "kb": 263,
   "nome": "Ofertas – Moda (modelo 2)",
   "segmento": "moda",
+  "tipo": "palco"
+ },
+ "palco-black-friday-fita": {
+  "video": "/studio/capas/palco-black-friday-fita.mp4",
+  "poster": "/studio/capas/palco-black-friday-fita.jpg",
+  "largura": 360,
+  "altura": 640,
+  "segundos": 10.8,
+  "kb": 432,
+  "nome": "Black Friday (fita amarela)",
+  "segmento": "mercado",
+  "tipo": "palco"
+ },
+ "palco-black-friday-fita-selos": {
+  "video": "/studio/capas/palco-black-friday-fita-selos.mp4",
+  "poster": "/studio/capas/palco-black-friday-fita-selos.jpg",
+  "largura": 360,
+  "altura": 640,
+  "segundos": 10.8,
+  "kb": 611,
+  "nome": "Black Friday (fita e selos %)",
+  "segmento": "mercado",
   "tipo": "palco"
  }
 }

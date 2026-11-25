@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { tabelaTabloide } from '@/lib/tabloide/db';
 import { lerValor, type ImagemProduto } from '@/lib/tabloide/parseProdutos';
 import { cn } from '@/lib/utils';
+import { FotoDoProduto } from '@/components/studio/FotoDoProduto';
 
 /** os segmentos da galeria: o filtro no catálogo (segmento do produto, com os nomes que as lojas usam) */
 export const SEGMENTOS_DA_GALERIA: Array<{ id: string; nome: string; filtro: string }> = [
@@ -100,7 +101,7 @@ export function GaleriaDeProdutos({ aberto, aoFechar, aoAdicionar, segmentoInici
                 const ja = adicionados.has(p.nome);
                 return (
                   <li key={p.nome} className="flex flex-col gap-1.5 rounded-xl border border-white/10 bg-[#14062f] p-2" data-testid="galeria-produto">
-                    <span className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-white"><img src={p.imagem_url} alt="" loading="lazy" className="h-full w-full object-contain" crossOrigin="anonymous" referrerPolicy="no-referrer" /></span>
+                    <span className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-white/5"><FotoDoProduto src={p.imagem_url} /></span>
                     <span className="line-clamp-2 min-h-[2.2em] text-[11px] font-semibold leading-tight text-white">{p.nome}</span>
                     <div className="grid grid-cols-2 gap-1">
                       <input inputMode="decimal" value={v.de} onChange={(e) => setPrecos((x) => ({ ...x, [p.nome]: { ...v, de: e.target.value } }))} placeholder="De (opc.)" aria-label={`Preço de (promoção) de ${p.nome}`} className="h-9 rounded-md border border-white/10 bg-black/30 px-1.5 text-xs text-white placeholder:text-slate-500" />
