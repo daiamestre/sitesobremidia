@@ -54,6 +54,8 @@ describe('F-359: produto NUNCA com fundo branco, venha a foto de onde vier', () 
       expect(t).toContain('<FotoDoProduto');
       expect(t).not.toMatch(/<img[^>]*src=\{(p|sel)\.imagem!?\.url\}/);
       expect(t).not.toMatch(/<img[^>]*src=\{p\.imagem_url\}/);
+      // nenhuma caixinha BRANCA atrás da foto do produto (bg-white puro; bg-white/5 é o vidro escuro)
+      for (const linha of t.split('\n')) if (/FotoDoProduto|imagem|foto/i.test(linha)) expect(linha).not.toMatch(/bg-white(?![/\-\w])/);
     }
     expect(fs.readFileSync('src/components/studio/FotoDoProduto.tsx', 'utf8')).toContain('carregarImagemDoProduto(src)');
   });

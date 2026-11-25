@@ -161,14 +161,14 @@ function LinhaDoProduto({ p, s, destaque, aoTrocarFoto, aoMaisFoto, atencao, aoT
   const faltas = faltasDoProduto(p);
   return (
     <li className={cn('flex items-center gap-2 rounded-lg border bg-black/20 p-1.5', atencao ? 'border-2 border-red-500 shadow-[0_0_14px_rgba(239,68,68,.9)] motion-safe:animate-pulse' : 'border-white/10')} data-testid="produto-linha" data-atencao={atencao ? 'sim' : undefined} onPointerDown={atencao ? aoTocar : undefined} onFocusCapture={atencao ? aoTocar : undefined}>
-      <button type="button" onClick={aoTrocarFoto} title="Trocar a foto" aria-label={`Trocar a foto de ${p.nome}`} className="group relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white">
+      <button type="button" onClick={aoTrocarFoto} title="Trocar a foto" aria-label={`Trocar a foto de ${p.nome}`} className="group relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white/5">
         {p.imagem ? <FotoDoProduto src={p.imagem.url} />
           : <span className="px-0.5 text-center text-[8px] font-bold leading-tight text-slate-500">{s.buscando.includes(p.nome) ? 'buscando…' : 'pôr foto'}</span>}
         <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"><ImagePlus className="h-4 w-4 text-white" /></span>
       </button>
       {/* F-354: as fotos a mais (verso/variações): aparecem juntas no vídeo; tocar tira */}
       {(p.imagensExtras ?? []).map((im, i) => (
-        <button key={i} type="button" onClick={() => s.tirarFotoExtra(p, i)} title="Tirar esta foto" aria-label={`Tirar a foto ${i + 2} de ${p.nome}`} className="relative h-12 w-9 shrink-0 overflow-hidden rounded-md bg-white" data-testid="produto-foto-extra">
+        <button key={i} type="button" onClick={() => s.tirarFotoExtra(p, i)} title="Tirar esta foto" aria-label={`Tirar a foto ${i + 2} de ${p.nome}`} className="relative h-12 w-9 shrink-0 overflow-hidden rounded-md bg-white/5" data-testid="produto-foto-extra">
           <FotoDoProduto src={im.url} />
           <span className="absolute right-0 top-0 rounded-bl bg-black/70 px-0.5 text-[9px] font-bold leading-none text-white">×</span>
         </button>
