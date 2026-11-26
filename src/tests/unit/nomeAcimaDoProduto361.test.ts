@@ -5,7 +5,7 @@
  */
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { nomeAcimaDoProduto, type Imagens } from '@/lib/studio/desenhar';
+import { AREA_PADRAO_DO_PRODUTO, geometriaDaImagem, nomeAcimaDoProduto, type Imagens } from '@/lib/studio/desenhar';
 import type { Camada, Documento } from '@/lib/studio/documento';
 
 const base = { rot: 0, opacidade: 1, visivel: true, bloqueada: false };
@@ -22,20 +22,26 @@ describe('F-361: nome do produto sempre ACIMA do produto, acompanhando o topo re
   const produto = (_alturaDaFoto: number) => imagem('Produto', 'p.png', 240, 290, 600, 600);
   const mapa = (alt: number): Imagens => new Map([['p.png', foto(600, alt)], ['logo.png', foto(800, 200)]]);
 
-  it('produto BAIXO: o nome DESCE e fica colado acima do topo real', () => {
+  // topo REAL do produto desenhado (mesma conta do desenho: tamanho padrão F-362)
+  const topoDe = (c: Camada, img: HTMLImageElement) => geometriaDaImagem(c as never, img)[1];
+
+  it('produto BAIXO: o nome DESCE e fica a uma distância MÉDIA (F-362) acima do topo real', () => {
     const d = doc([nome(150), produto(150)]);
-    nomeAcimaDoProduto(d, mapa(150)); // topo real = 890 - 150 = 740
+    nomeAcimaDoProduto(d, mapa(150));
+    const topo = topoDe(d.camadas[1], foto(600, 150));
     const n = N(d);
-    expect(n.y + n.h).toBeLessThanOrEqual(740);
-    expect(740 - (n.y + n.h)).toBeLessThanOrEqual(20);
+    expect(n.y).toBeGreaterThan(150); // desceu
+    expect(topo - (n.y + n.h)).toBeGreaterThanOrEqual(30); // nem colado…
+    expect(topo - (n.y + n.h)).toBeLessThanOrEqual(72); // …nem longe
   });
 
   it('produto ALTO: o nome SOBE (nunca fica por cima) e para no fim da logo', () => {
     const logo = imagem('Logo do palco', 'logo.png', 140, 0, 800, 200); // fim da logo = 200
-    const d = doc([logo, nome(250), imagem('Produto', 'p.png', 240, 200, 600, 690)]);
-    nomeAcimaDoProduto(d, new Map([['p.png', foto(600, 520)], ['logo.png', foto(800, 200)]])); // topo real = 890 - 520 = 370
+    const prod = imagem('Produto', 'p.png', 240, 200, 600, 690);
+    const d = doc([logo, nome(250), prod]);
+    nomeAcimaDoProduto(d, new Map([['p.png', foto(600, 520)], ['logo.png', foto(800, 200)]]));
     const n = N(d);
-    expect(n.y + n.h).toBeLessThanOrEqual(370); // não cobre o produto
+    expect(n.y + n.h).toBeLessThanOrEqual(topoDe(prod, foto(600, 520))); // não cobre o produto
     expect(n.y).toBeGreaterThanOrEqual(200); // não passa da logo
   });
 
@@ -68,5 +74,19 @@ describe('F-361: nome do produto sempre ACIMA do produto, acompanhando o topo re
     const palco = fs.readFileSync('src/lib/studio/palco.ts', 'utf8');
     expect(palco).toMatch(/c\.nome === 'Nome do produto' && c\.tipo === 'texto' && !\('y' in resto\) && !\('x' in resto\)/);
     expect(fs.readFileSync('src/lib/studio/desenhar.ts', 'utf8')).toMatch(/nomeAcimaDoProduto\(d, mapa\);\s*return mapa;/);
+  });
+});
+
+describe('F-362: todo produto no TAMANHO PADRÃO (mesma área visível na caixa), qualquer que seja a foto', () => {
+  const caixa = imagem('Produto', 'p.png', 0, 0, 600, 600);
+  const area = (fw: number, fh: number) => { const [, , w, h] = geometriaDaImagem(caixa as never, foto(fw, fh)); return w * h; };
+  it('bolo largo, caixa de som alta, produto quadrado e foto pequena ficam com a MESMA área', () => {
+    const alvo = AREA_PADRAO_DO_PRODUTO * 600 * 600;
+    for (const [fw, fh] of [[600, 260], [270, 600], [500, 500], [120, 120], [2400, 2400]]) expect(Math.abs(area(fw, fh) - alvo) / alvo).toBeLessThan(0.02);
+  });
+  it('nunca passa da caixa e o pé fica no tampo', () => {
+    const [x, y, w, h] = geometriaDaImagem(caixa as never, foto(600, 100)); // muito largo: limitado pela largura
+    expect(x).toBeGreaterThanOrEqual(-0.5); expect(x + w).toBeLessThanOrEqual(600.5);
+    expect(y + h).toBeCloseTo(600, 0);
   });
 });

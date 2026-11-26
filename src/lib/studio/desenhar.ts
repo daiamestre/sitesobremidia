@@ -141,34 +141,59 @@ export async function prepararDocumento(d: Documento): Promise<Imagens> {
   return mapa;
 }
 
-/** F-361: onde o desenho VISÍVEL começa e termina numa foto (fração da altura), sem a margem transparente */
-const faixaVisivel = new WeakMap<HTMLImageElement, [number, number]>();
-function visivelDaFoto(img: HTMLImageElement): [number, number] {
+/** F-361: onde o desenho VISÍVEL começa e termina numa foto (frações [topo, base, esquerda, direita]), sem a margem transparente */
+const faixaVisivel = new WeakMap<HTMLImageElement, [number, number, number, number]>();
+function visivelDaFoto(img: HTMLImageElement): [number, number, number, number] {
   const g = faixaVisivel.get(img);
   if (g) return g;
-  let r: [number, number] = [0, 1];
+  let r: [number, number, number, number] = [0, 1, 0, 1];
   try {
-    const lado = 96, k = lado / Math.max(img.naturalWidth, img.naturalHeight);
+    const lado = 128, k = lado / Math.max(img.naturalWidth, img.naturalHeight);
     const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     const x = c.getContext('2d', { willReadFrequently: true });
     if (x) {
       x.drawImage(img, 0, 0, w, h);
       const dd = x.getImageData(0, 0, w, h).data;
-      const linhaTem = (py: number) => { for (let px = 0; px < w; px++) if (dd[(py * w + px) * 4 + 3] > 40) return true; return false; };
+      const tem = (px: number, py: number) => dd[(py * w + px) * 4 + 3] > 40;
+      const linhaTem = (py: number) => { for (let px = 0; px < w; px++) if (tem(px, py)) return true; return false; };
+      const colunaTem = (px: number) => { for (let py = 0; py < h; py++) if (tem(px, py)) return true; return false; };
       let t = 0; while (t < h && !linhaTem(t)) t++;
       let b = h - 1; while (b > t && !linhaTem(b)) b--;
-      if (t < h) r = [t / h, (b + 1) / h];
+      let l = 0; while (l < w && !colunaTem(l)) l++;
+      let d = w - 1; while (d > l && !colunaTem(d)) d--;
+      if (t < h && l < w) r = [t / h, (b + 1) / h, l / w, (d + 1) / w];
     }
-  } catch { /* foto sem permissão de leitura: usa a caixa inteira */ }
+  } catch { /* foto sem permissão de leitura: usa a foto inteira */ }
   faixaVisivel.set(img, r);
   return r;
 }
+
+/**
+ * F-362 (dono, 25/11/2026: "os produtos têm de ter um tamanho padrão e proporção padrão; produto com imagem pequena e
+ * produto com imagem grande ficam no tamanho de um produto normal"): todo PRODUTO (palco e encartes) é desenhado pelo seu
+ * desenho VISÍVEL (sem a margem transparente da foto) e com a MESMA ÁREA visível — uma fração fixa da caixa dele — sem nunca
+ * passar da caixa. Assim um produto baixo e largo (bolo), um alto (garrafa, caixa de som) e um quadrado ocupam o mesmo espaço.
+ * O pé continua no tampo (focoY) e o zoom do cliente continua valendo por cima.
+ */
+export const AREA_PADRAO_DO_PRODUTO = 0.42;
+/** onde a foto é desenhada dentro da caixa da camada (coordenadas da arte): [x, y, largura, altura] */
+export function geometriaDaImagem(c: CamadaImagem, img: HTMLImageElement): [number, number, number, number] {
+  const nw = img.naturalWidth, nh = img.naturalHeight;
+  if (c.ajuste === 'conter' && ehCamadaDeProduto(c.nome)) {
+    const [t, b, l, r] = visivelDaFoto(img);
+    const vw = Math.max(1, (r - l) * nw), vh = Math.max(1, (b - t) * nh);
+    const s = Math.min(c.w / vw, c.h / vh, Math.sqrt((AREA_PADRAO_DO_PRODUTO * c.w * c.h) / (vw * vh))) * Math.max(1, c.zoom);
+    const x = c.x + (c.w - vw * s) * (c.focoX / 100) - l * nw * s;
+    const y = c.y + (c.h - vh * s) * (c.focoY / 100) - t * nh * s;
+    return [x, y, nw * s, nh * s];
+  }
+  const s = (c.ajuste === 'conter' ? Math.min : Math.max)(c.w / nw, c.h / nh) * Math.max(1, c.zoom);
+  return [c.x + (c.w - nw * s) * (c.focoX / 100), c.y + (c.h - nh * s) * (c.focoY / 100), nw * s, nh * s];
+}
 /** F-361: topo e base REAIS (na arte) do que está visível numa camada de imagem */
 function limitesDaImagem(c: CamadaImagem, img: HTMLImageElement): [number, number] {
-  const s = (c.ajuste === 'conter' ? Math.min : Math.max)(c.w / img.naturalWidth, c.h / img.naturalHeight) * Math.max(1, c.zoom);
-  const dh = img.naturalHeight * s;
-  const y0 = c.y + (c.h - dh) * (c.focoY / 100);
+  const [, y0, , dh] = geometriaDaImagem(c, img);
   const [t, b] = visivelDaFoto(img);
   // sem o recorte da caixa (produto e logo soltos, F-240) a foto não é cortada; com ele, nada passa da caixa
   return [Math.max(c.ajuste === 'conter' ? -Infinity : c.y, y0 + dh * t), Math.min(c.ajuste === 'conter' ? Infinity : c.y + c.h, y0 + dh * b)];
@@ -212,7 +237,8 @@ export function nomeAcimaDoProduto(d: Documento, mapa: Imagens) {
     limite = Math.max(limite, l.tipo === 'imagem' && img?.naturalWidth ? limitesDaImagem(l, img)[1] : l.y + l.h);
   }
   limite += 8;
-  const folga = Math.max(10, base.h * 0.12);
+  // F-362 (dono, 25/11/2026: "o nome está muito perto do produto, quero uma distância média"): 40% da altura do nome, 30 a 72 px
+  const folga = Math.min(72, Math.max(30, base.h * 0.4));
   let k = 1, y = topo - folga - base.h;
   if (y < limite) {
     // cabe se diminuir até 60%? diminui. Se nem assim (o cliente aumentou o produto até a logo), mantém o tamanho logo abaixo da logo
@@ -276,10 +302,10 @@ function desenharImagem(ctx: CanvasRenderingContext2D, c: CamadaImagem, img: HTM
     ctx.clip();
   }
   if (!img) { ctx.shadowColor = 'transparent'; ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h); return; }
-  const s = (c.ajuste === 'conter' ? Math.min : Math.max)(c.w / img.naturalWidth, c.h / img.naturalHeight) * Math.max(1, c.zoom);
-  const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
-  const dx = -c.w / 2 + (c.w - dw) * (c.focoX / 100);
-  const dy = -c.h / 2 + (c.h - dh) * (c.focoY / 100);
+  // F-362: produto no tamanho padrão (pelo desenho visível); as outras imagens como sempre
+  const [gx, gy, dw, dh] = geometriaDaImagem(c, img);
+  const dx = gx - c.x - c.w / 2;
+  const dy = gy - c.y - c.h / 2;
   const filtros = [c.brilho !== 100 && `brightness(${c.brilho}%)`, c.contraste !== 100 && `contrast(${c.contraste}%)`, c.saturacao !== 100 && `saturate(${c.saturacao}%)`, !!c.matiz && `hue-rotate(${c.matiz}deg)`, c.desfoque > 0 && `blur(${c.desfoque * e}px)`].filter(Boolean).join(' ');
   if (filtros) ctx.filter = filtros;
   if (c.espelhar) { ctx.scale(-1, 1); ctx.drawImage(img, -dx - dw, dy, dw, dh); } else ctx.drawImage(img, dx, dy, dw, dh);

@@ -18,6 +18,7 @@ faixa editável, logo do cliente opcional) e commitada. **Publicar no site só q
 "adicione as logos"), tudo de uma vez. Manual completo e regras: `docs/studio/LOGOS_E_FUNDOS_DO_DONO.md`.
 
 ## 2. Situação exata
+- **25/11/2026 (F-362): produto no TAMANHO PADRÃO (palco e encartes) + nome a distância média.** Commit feito; **publicação aguardando o OK do dono** (junto com a F-361).
 - **25/11/2026 (F-361): nome do produto SEMPRE acima do produto** (desce com produto baixo, sobe com produto alto, nunca por cima, nunca passa da logo nem encosta no balão). Commit feito; **publicação aguardando o OK do dono**. Depois de publicar, regravar as capas de palco (`gravar-capas.mjs --so=palco-…`), de preferência junto com os fundos novos da outra conversa (F-360), para não gravar trabalho pela metade.
 - **24/11/2026 (F-359): produto sem fundo em TODA tela + MANUAL DE CRIAÇÃO.** Toda camada de produto e toda miniatura passam pelo recorte; as 43 capas foram regravadas; o manual `docs/studio/MANUAL_DE_CRIACAO_DO_STUDIO.md` é obrigatório antes de criar, editar ou mostrar arte, vídeo ou áudio. Pendente: produto branco em foto branca (carregador) espera o recorte da nuvem (cota da Cloudflare volta todo mês).
 - **23/11/2026: as 43 logos da fila foram PUBLICADAS** (commit 92c9b98 enviado ao main; a Vercel publica do main). No ar: 111 logos de promoção.

@@ -4207,3 +4207,12 @@ Cadeia auditada: `ScreenDetails` (Lista de Reprodução) e `PlaylistItemsDialog`
 - **Limite conhecido:** no Alerta, a camada da logo (transparente) é maior que a logo pintada no fundo, então com produto MUITO aumentado o nome para mais baixo do que poderia, sem passar da logo.
 - **Achado à parte (não mexido):** os palcos Black Friday (fita e fita-selos) aparecem sem logo nenhuma: a camada da logo está transparente e o fundo não tem logo pintada. Perguntar ao dono.
 - **Teste:** `nomeAcimaDoProduto361.test.ts` (6 casos). Commit só com os trechos da F-361: os da outra conversa (F-360: fundos, vinheta, texto do botão) ficaram fora.
+
+
+### F-362 — Produto no TAMANHO PADRÃO (palco e encartes) e nome a distância MÉDIA (25/11/2026)
+- **Pedido do dono:** "o nome está muito perto do produto: quero uma distância média. Os produtos têm de ter tamanho e proporção padrão: produto com imagem pequena e produto com imagem grande ficam no tamanho de um produto normal". Valendo para palco E encartes (resposta do dono).
+- **Causa:** o produto era ajustado à caixa pelo ARQUIVO (`conter`): foto com margem transparente ou alta/fina (Pro Plan, whisky) ficava pequena, e foto "cheia" (feijão, caixa de som) ficava grande.
+- **Correção:** `geometriaDaImagem` em `desenhar.ts`. Toda camada de produto (`ehCamadaDeProduto`, `ajuste: 'conter'`) é desenhada pelo desenho VISÍVEL (`visivelDaFoto`, que agora mede topo, base, esquerda e direita) com a MESMA área: `AREA_PADRAO_DO_PRODUTO` = 0,42 da caixa. Nunca passa da caixa; o pé fica no tampo (focoY) e o zoom do cliente vale por cima. O nome (`nomeAcimaDoProduto`) usa a mesma conta.
+- **Nome:** a folga passou de 12% (colado) para 40% da altura do nome, de 30 a 72 px.
+- **Conferido:** palco Padaria com 6 produtos de formatos diferentes, e encarte Mega Oferta com 12, antes e depois (`docs/studio/conferencias/tamanho-padrao-*-F362.jpg`). Bateria do Studio: 681 testes passando.
+- **Teste:** `nomeAcimaDoProduto361.test.ts` (bolo largo, caixa alta, quadrado e foto pequena com a mesma área; nunca passa da caixa; nome a 30–72 px).
