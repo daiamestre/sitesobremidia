@@ -376,7 +376,9 @@ function comAjustes(d: Documento, formato: FormatoDoc, o: OpcoesDoPalco, nomeDoP
   return { ...d, camadas: [...d.camadas.map((c) => {
     const { topo, ...resto } = { ...(a[c.nome] ?? {}), ...(c.nome === 'Produto' && doProduto ? doProduto : {}) } as Partial<Camada> & { topo?: string };
     const promo = c.tipo === 'selo' && c.topo.startsWith('DE ');
-    return { ...c, ...resto, ...(topo != null && !promo ? { topo } : {}), id: c.nome } as Camada;
+    // F-361: o nome segue o topo REAL do produto, a não ser que o cliente tenha posto o nome em outro lugar à mão
+    const nomeSolto = c.nome === 'Nome do produto' && c.tipo === 'texto' && !('y' in resto) && !('x' in resto);
+    return { ...c, ...resto, ...(topo != null && !promo ? { topo } : {}), ...(nomeSolto ? { acimaDoProduto: true } : {}), id: c.nome } as Camada;
   }), ...novas] };
 }
 

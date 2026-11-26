@@ -47,6 +47,8 @@ export interface CamadaTexto extends CamadaBase {
   letreiro?: { velocidade: number; fundo: string; /** pedido do dono (16/11/2026): para que lado o texto passa (padrão: esquerda) */ sentido?: 'esquerda' | 'direita' } | null;
   /** F-288: o texto ENCOLHE sozinho para caber na largura (textos da logo: trocar OFERTAS por PROMOÇÃO não estoura) */
   caber?: boolean;
+  /** F-361 (dono, 24–25/11/2026): o NOME do produto fica colado ACIMA do topo real da foto do produto (desenhar.ts, nomeAcimaDoProduto); sai quando o cliente arrasta o nome à mão */
+  acimaDoProduto?: boolean;
 }
 export interface CamadaForma extends CamadaBase {
   tipo: 'forma'; forma: 'retangulo' | 'elipse'; cor: string; degrade?: Degrade | null; raio: number;

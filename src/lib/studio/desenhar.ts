@@ -137,7 +137,99 @@ export async function prepararDocumento(d: Documento): Promise<Imagens> {
   // F-359: foto de camada de PRODUTO sempre sem fundo (as outras imagens — fundo, logo, ícones — como vieram)
   const deProduto = new Set(d.camadas.filter((c) => c.tipo === 'imagem' && ehCamadaDeProduto(c.nome)).map((c) => (c as { src: string }).src));
   await Promise.all([...imagensDo(d).map(async (s) => { const i = await (deProduto.has(s) ? carregarImagemDoProduto(s) : carregarImagem(s)); if (i) mapa.set(s, i); }), prepararEfeitos(d)]);
+  nomeAcimaDoProduto(d, mapa);
   return mapa;
+}
+
+/** F-361: onde o desenho VISÍVEL começa e termina numa foto (fração da altura), sem a margem transparente */
+const faixaVisivel = new WeakMap<HTMLImageElement, [number, number]>();
+function visivelDaFoto(img: HTMLImageElement): [number, number] {
+  const g = faixaVisivel.get(img);
+  if (g) return g;
+  let r: [number, number] = [0, 1];
+  try {
+    const lado = 96, k = lado / Math.max(img.naturalWidth, img.naturalHeight);
+    const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    if (x) {
+      x.drawImage(img, 0, 0, w, h);
+      const dd = x.getImageData(0, 0, w, h).data;
+      const linhaTem = (py: number) => { for (let px = 0; px < w; px++) if (dd[(py * w + px) * 4 + 3] > 40) return true; return false; };
+      let t = 0; while (t < h && !linhaTem(t)) t++;
+      let b = h - 1; while (b > t && !linhaTem(b)) b--;
+      if (t < h) r = [t / h, (b + 1) / h];
+    }
+  } catch { /* foto sem permissão de leitura: usa a caixa inteira */ }
+  faixaVisivel.set(img, r);
+  return r;
+}
+/** F-361: topo e base REAIS (na arte) do que está visível numa camada de imagem */
+function limitesDaImagem(c: CamadaImagem, img: HTMLImageElement): [number, number] {
+  const s = (c.ajuste === 'conter' ? Math.min : Math.max)(c.w / img.naturalWidth, c.h / img.naturalHeight) * Math.max(1, c.zoom);
+  const dh = img.naturalHeight * s;
+  const y0 = c.y + (c.h - dh) * (c.focoY / 100);
+  const [t, b] = visivelDaFoto(img);
+  // sem o recorte da caixa (produto e logo soltos, F-240) a foto não é cortada; com ele, nada passa da caixa
+  return [Math.max(c.ajuste === 'conter' ? -Infinity : c.y, y0 + dh * t), Math.min(c.ajuste === 'conter' ? Infinity : c.y + c.h, y0 + dh * b)];
+}
+const baseDoNome = new WeakMap<CamadaTexto, { y: number; h: number; tamanho: number }>();
+/**
+ * F-361 (dono, 24–25/11/2026: "o nome do produto fica SEMPRE ACIMA do produto, nunca por cima, a uma distância mínima, e
+ * acompanha o produto"): o NOME marcado pelo palco (`acimaDoProduto`, que sai se o cliente arrastar o nome à mão) fica colado
+ * no TOPO REAL da foto do produto (sem a margem transparente). Produto baixo → o nome desce; produto alto → o nome sobe, até
+ * o fim da logo. Se não couber entre a logo e o produto, o nome diminui (até 60%) em vez de ficar por cima. A conta parte
+ * sempre da posição original (chamar de novo não acumula).
+ */
+export function nomeAcimaDoProduto(d: Documento, mapa: Imagens) {
+  const nome = d.camadas.find((c): c is CamadaTexto => c.tipo === 'texto' && c.nome === 'Nome do produto' && !!c.acimaDoProduto && c.visivel !== false);
+  if (!nome) return;
+  const produtos = d.camadas.filter((c): c is CamadaImagem => c.tipo === 'imagem' && ehCamadaDeProduto(c.nome) && c.visivel !== false && c.w > 0 && c.h > 0);
+  const base = baseDoNome.get(nome) ?? { y: nome.y, h: nome.h, tamanho: nome.tamanho };
+  baseDoNome.set(nome, base);
+  let topo = Infinity, fundo = -Infinity, esquerda = Infinity, direita = -Infinity;
+  for (const p of produtos) {
+    const img = mapa.get(p.src);
+    if (!img?.naturalWidth || !img.naturalHeight) continue;
+    const [t, b] = limitesDaImagem(p, img);
+    topo = Math.min(topo, t); fundo = Math.max(fundo, b);
+    esquerda = Math.min(esquerda, p.x); direita = Math.max(direita, p.x + p.w);
+  }
+  if (!Number.isFinite(topo)) return;
+  // só quando o nome fica EM CIMA do produto (em pé); deitado, o nome fica ao lado e não muda. "Em cima" = o meio do nome
+  // acima do MEIO do produto (o produto aumentado pelo cliente pode subir além do nome e o nome tem de subir junto)
+  const cruza = Math.min(nome.x + nome.w, direita) - Math.max(nome.x, esquerda);
+  if (cruza < Math.min(nome.w, direita - esquerda) * 0.3 || base.y + base.h / 2 > (topo + fundo) / 2) return;
+  // limite de cima: o fim da LOGO — a logo do palco (mesmo transparente: aí a logo é a pintada no fundo, na mesma caixa),
+  // a logo editável em peças ("Logo – base", "Logo – faixa", "Logo – frase", "Logo no círculo") e a logo do cliente
+  let limite = 0;
+  for (const l of d.camadas) {
+    if (!/^Logo( |$)|^Sua logo$/.test(l.nome) || l.visivel === false) continue;
+    if (l.y + l.h / 2 > base.y + base.h) continue; // só a logo que fica ACIMA do nome
+    if (Math.min(nome.x + nome.w, l.x + l.w) - Math.max(nome.x, l.x) <= 0) continue; // e na mesma coluna (deitado, a logo fica ao lado)
+    // logo transparente (a pintada no fundo é a MESMA arte, na mesma caixa): mede o que aparece dela, não a caixa inteira
+    const img = l.tipo === 'imagem' ? mapa.get(l.src) : undefined;
+    limite = Math.max(limite, l.tipo === 'imagem' && img?.naturalWidth ? limitesDaImagem(l, img)[1] : l.y + l.h);
+  }
+  limite += 8;
+  const folga = Math.max(10, base.h * 0.12);
+  let k = 1, y = topo - folga - base.h;
+  if (y < limite) {
+    // cabe se diminuir até 60%? diminui. Se nem assim (o cliente aumentou o produto até a logo), mantém o tamanho logo abaixo da logo
+    const cabe = (topo - folga - limite) / base.h;
+    k = cabe >= 0.6 ? cabe : 1;
+    y = cabe >= 0.6 ? topo - folga - base.h * k : limite;
+  }
+  // o nome nunca encosta no BALÃO de preço que fica na mesma linha (ao lado do produto): desce só até logo acima dele
+  for (const s of d.camadas) {
+    if (s.tipo !== 'selo' || s.visivel === false) continue;
+    const lado = Math.min(nome.x + nome.w, s.x + s.w) - Math.max(nome.x, s.x);
+    if (lado <= 0 || s.y < base.y + base.h) continue; // balão acima do nome original não limita
+    y = Math.max(limite, Math.min(y, s.y - 8 - base.h * k));
+  }
+  nome.tamanho = base.tamanho * k;
+  nome.h = base.h * k;
+  nome.y = y;
 }
 
 function preenchimento(ctx: CanvasRenderingContext2D, cor: string, degrade: Degrade | null | undefined, w: number, h: number): string | CanvasGradient {
