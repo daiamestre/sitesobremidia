@@ -3,7 +3,7 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "node scripts/ops/onde-paramos.mjs" }
+          { "type": "command", "command": "node scripts/ops/onde-paramos.mjs --curto" }
         ]
       }
     ]

@@ -32,6 +32,16 @@ export function ultimasEntregas(ledger, n = 6) {
 }
 
 function main() {
+  // ECONOMIA (dono, 26/11/2026: "está gastando créditos muito rápido"): o gancho do início de toda conversa usa --curto —
+  // só a SITUAÇÃO EXATA do ponto de retomada (≈2 mil caracteres em vez de 13 mil). O resto se lê só quando precisar.
+  if (process.argv[2] === '--curto') {
+    const ponto = fs.existsSync('docs/PONTO_DE_RETOMADA.md') ? fs.readFileSync('docs/PONTO_DE_RETOMADA.md', 'utf8') : '';
+    const sit = (ponto.split(/^## 2\. Situação exata\s*$/m)[1] ?? '').split(/^## /m)[0].trim().split(/\r?\n/).slice(0, 6).map((l) => (l.length > 260 ? `${l.slice(0, 260)}…` : l));
+    console.log('SOBRE MÍDIA — onde paramos (resumo). Completo: docs/PONTO_DE_RETOMADA.md · Regras de economia: docs/ECONOMIA_DE_CREDITOS.md');
+    console.log(sit.join('\n'));
+    console.log(`Último commit: ${git('log', '-1', '--format=%h %s (%cr)')}`);
+    return;
+  }
   const estado = fs.readFileSync('docs/ESTADO_DO_SISTEMA.md', 'utf8');
   const pedida = process.argv[2]?.toUpperCase();
   const lista = pendencias(estado);
