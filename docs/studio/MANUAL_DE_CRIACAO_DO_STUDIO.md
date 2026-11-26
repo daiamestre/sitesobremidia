@@ -7,7 +7,7 @@
 
 ---
 
-## 0. As 12 regras de ouro (quebrar qualquer uma = o dono reprova na hora)
+## 0. As regras de ouro (quebrar qualquer uma = o dono reprova na hora)
 
 1. **Produto NUNCA tem fundo.** Nem branco, nem cinza, nem quadrado em volta, em nenhum lugar: arte final, vídeo, prévia,
    capa, miniatura da lista, galeria. Detalhes na seção 2. Foi a bronca de 20/11 (F-351) e de 24/11 (F-359).
@@ -29,6 +29,9 @@
 10. **Voz gravada é tratada ANTES** de clonar ou converter: limpar e encurtar pausas longas, sem acelerar e sem cortar palavra (seção 7).
 11. **Fluido no tablet simples (M10):** toda animação passa pelo regente; as capas são vídeos gravados (seção 8).
 12. **Testar ANTES de responder**, no navegador e ampliado, e mandar o ANTES e DEPOIS. Dizer o que não deu para testar.
+13. **Checar o que o sistema JÁ TEM e PERGUNTAR antes de agir** (dono, 24/11/2026, muito bravo). Todo pedido começa olhando o que existe (catálogo, produtos já recortados em `../marcas-v3/*/pronto|oficial`, fundos, logos, código real, manuais), sem nunca recriar em paralelo. Antes de criar, trocar ou publicar, perguntar o rumo e esperar o "pode". A autorização total vale para não travar em licença técnica, NÃO para decidir o rumo sozinho.
+14. **Conferir e corrigir ANTES de entregar** (24–25/11): olhar a arte ampliada e corrigir qualquer erro visível antes de mostrar. Ao mover um elemento, conferir que ele não empurrou outro para o lugar errado.
+    **O NOME do produto fica SEMPRE ACIMA do produto, nunca por cima**, a uma distância mínima, e ACOMPANHA o topo real da foto: produto menor = nome mais baixo, colado no topo. Hoje o nome usa uma caixa fixa (`nome_` do fundo). Ajustá-lo ao topo real do produto, na hora do desenho, está PENDENTE e vale para todos os palcos.
 
 ---
 
